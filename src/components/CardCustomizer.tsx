@@ -34,6 +34,7 @@ interface ElementData {
   height?: number;
   borderRadius?: number;
   opacity?: number;
+  rotation?: number;
   color: string;
   fontSize?: number;
 }
@@ -187,6 +188,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     if (selectedElementId === id) setSelectedElementId(null);
   };
 
+  const clearCanvas = () => {
+    updateCurrentSide({ elements: [] });
+    setSelectedElementId(null);
+  };
+
   const handleDragEnd = (info: any, id: string) => {
     const el = currentSideState.elements.find(e => e.id === id);
     if (el) {
@@ -246,7 +252,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                <div className="absolute inset-0 opacity-20 blur-[100px] transition-colors duration-700 pointer-events-none" style={{ backgroundColor: currentSideState.bgColor }}></div>
                
                {/* The Card */}
-               <div 
+               <motion.div 
+                 key={activeSide}
+                 initial={{ scaleX: 0 }}
+                 animate={{ scaleX: 1 }}
+                 transition={{ duration: 0.4, ease: "easeInOut" }}
                  ref={containerRef}
                  className="relative rounded-2xl shadow-2xl transition-all duration-500 z-10 overflow-hidden shrink-0"
                  style={{
@@ -272,7 +282,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                          dragConstraints={containerRef}
                          onDragEnd={(e, info) => handleDragEnd(info, el.id)}
                          onClick={(e) => { e.stopPropagation(); setSelectedElementId(el.id); }}
-                         style={{ x: el.x, y: el.y, zIndex: el.z || 1, position: 'absolute', top: 0, left: 0, color: el.color, opacity: el.opacity ?? 1 }}
+                         style={{ x: el.x, y: el.y, zIndex: el.z || 1, position: 'absolute', top: 0, left: 0, color: el.color, opacity: el.opacity ?? 1, rotate: el.rotation || 0 }}
                          className={`cursor-grab active:cursor-grabbing p-1 border ${selectedElementId === el.id ? 'border-indigo-400 border-dashed bg-white/5' : 'border-transparent'} hover:border-white/30 rounded transition-colors`}
                        >
                          {el.type === 'text' && (
@@ -294,7 +304,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                        </motion.div>
                      );
                   })}
-               </div>
+               </motion.div>
             </div>
             
             <p className="text-center text-xs text-gray-500 mt-4">
@@ -356,6 +366,12 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                           <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
                        </button>
                     </div>
+                 </div>
+
+                 <div className="pt-6 border-t border-white/10 mt-8">
+                    <button onClick={clearCanvas} className="flex items-center text-red-400 hover:text-red-300 transition-colors text-[10px] uppercase tracking-widest font-bold px-4 py-2 bg-red-400/10 hover:bg-red-400/20 rounded-lg w-full justify-center">
+                       <Trash2 className="w-4 h-4 mr-2" /> Start from Scratch
+                    </button>
                  </div>
               </div>
             ) : (
@@ -502,6 +518,20 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                      min="0" max="1" step="0.05"
                      value={selectedElement?.opacity ?? 1}
                      onChange={(e) => updateElement(selectedElement.id, { opacity: parseFloat(e.target.value) })}
+                     className="w-full accent-white"
+                   />
+                 </div>
+
+                 <div>
+                   <label className="block text-[10px] uppercase tracking-widest font-bold mb-2 text-gray-500 mt-6 flex justify-between">
+                     <span>Rotation</span>
+                     <span>{selectedElement?.rotation || 0}°</span>
+                   </label>
+                   <input 
+                     type="range" 
+                     min="0" max="360" 
+                     value={selectedElement?.rotation || 0}
+                     onChange={(e) => updateElement(selectedElement.id, { rotation: parseInt(e.target.value) })}
                      className="w-full accent-white"
                    />
                  </div>
