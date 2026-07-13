@@ -1,0 +1,6 @@
+{
+  "name": "TapConnect NFC Solutions",
+  "description": "Premium NFC cards for businesses to collect reviews, share menus, and connect to Wi-Fi with a simple tap.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
