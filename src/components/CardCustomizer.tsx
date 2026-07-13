@@ -1,6 +1,9 @@
 import { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { SmartphoneNfc, Star, Utensils, Wifi, Type, Trash2, MonitorSmartphone, Image as ImageIcon, Square, ArrowUp, ArrowDown } from 'lucide-react';
+import { 
+  SmartphoneNfc, Star, Utensils, Wifi, Type, Trash2, MonitorSmartphone, Image as ImageIcon, Square, ArrowUp, ArrowDown,
+  Waves, Coffee, ShoppingBag, Heart, User, MapPin, Phone, Mail, Globe, Instagram, Facebook, Twitter, Linkedin, Github, MessageCircle, Music, Video, Camera, Anchor, Zap, Shield, Sun, Moon, Cloud, Droplet, Hexagon, Triangle, Circle
+} from 'lucide-react';
 
 const COLORS = [
   { name: 'Obsidian', value: '#111111', textDark: false },
@@ -16,6 +19,34 @@ const ICONS = [
   { id: 'review', label: 'Star', component: Star },
   { id: 'menu', label: 'Menu', component: Utensils },
   { id: 'wifi', label: 'Wi-Fi', component: Wifi },
+  { id: 'waves', label: 'Waves', component: Waves },
+  { id: 'coffee', label: 'Coffee', component: Coffee },
+  { id: 'shop', label: 'Shop', component: ShoppingBag },
+  { id: 'heart', label: 'Heart', component: Heart },
+  { id: 'user', label: 'User', component: User },
+  { id: 'map', label: 'Map', component: MapPin },
+  { id: 'phone', label: 'Phone', component: Phone },
+  { id: 'mail', label: 'Mail', component: Mail },
+  { id: 'globe', label: 'Globe', component: Globe },
+  { id: 'insta', label: 'Instagram', component: Instagram },
+  { id: 'fb', label: 'Facebook', component: Facebook },
+  { id: 'twitter', label: 'Twitter', component: Twitter },
+  { id: 'linkedin', label: 'LinkedIn', component: Linkedin },
+  { id: 'github', label: 'GitHub', component: Github },
+  { id: 'msg', label: 'Message', component: MessageCircle },
+  { id: 'music', label: 'Music', component: Music },
+  { id: 'video', label: 'Video', component: Video },
+  { id: 'camera', label: 'Camera', component: Camera },
+  { id: 'anchor', label: 'Anchor', component: Anchor },
+  { id: 'zap', label: 'Zap', component: Zap },
+  { id: 'shield', label: 'Shield', component: Shield },
+  { id: 'sun', label: 'Sun', component: Sun },
+  { id: 'moon', label: 'Moon', component: Moon },
+  { id: 'cloud', label: 'Cloud', component: Cloud },
+  { id: 'drop', label: 'Drop', component: Droplet },
+  { id: 'hex', label: 'Hexagon', component: Hexagon },
+  { id: 'tri', label: 'Triangle', component: Triangle },
+  { id: 'circle', label: 'Circle', component: Circle },
 ];
 
 type Orientation = 'horizontal' | 'vertical';
@@ -37,6 +68,7 @@ interface ElementData {
   rotation?: number;
   color: string;
   fontSize?: number;
+  fontFamily?: string;
 }
 
 interface CardState {
@@ -51,7 +83,6 @@ interface CardCustomizerProps {
 export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = {}) {
   const [orientation, setOrientation] = useState<Orientation>('horizontal');
   const [activeSide, setActiveSide] = useState<Side>('front');
-  const [material, setMaterial] = useState('matte');
   
   const [cardData, setCardData] = useState<Record<Side, CardState>>({
     front: {
@@ -101,7 +132,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       x: 100,
       y: 100,
       z: getNextZ(),
-      color: COLORS.find(c => c.value === currentSideState.bgColor)?.textDark ? '#111111' : '#ffffff',
+      color: (COLORS.find(c => c.value === currentSideState.bgColor)?.textDark ?? false) ? '#111111' : '#ffffff',
       fontSize: 20,
       opacity: 1
     };
@@ -117,7 +148,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       x: 100,
       y: 100,
       z: getNextZ(),
-      color: COLORS.find(c => c.value === currentSideState.bgColor)?.textDark ? '#111111' : '#ffffff',
+      color: (COLORS.find(c => c.value === currentSideState.bgColor)?.textDark ?? false) ? '#111111' : '#ffffff',
       opacity: 1
     };
     updateCurrentSide({ elements: [...currentSideState.elements, newEl] });
@@ -134,7 +165,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       width: 100,
       height: 100,
       borderRadius: 0,
-      color: COLORS.find(c => c.value === currentSideState.bgColor)?.textDark ? '#111111' : '#ffffff',
+      color: (COLORS.find(c => c.value === currentSideState.bgColor)?.textDark ?? false) ? '#111111' : '#ffffff',
       opacity: 1
     };
     updateCurrentSide({ elements: [...currentSideState.elements, newEl] });
@@ -263,13 +294,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                    width: orientation === 'horizontal' ? '400px' : '252px',
                    height: orientation === 'horizontal' ? '252px' : '400px',
                    backgroundColor: currentSideState.bgColor,
-                   boxShadow: material === 'glossy' ? 'inset 0 1px 1px rgba(255,255,255,0.4), 0 20px 40px rgba(0,0,0,0.5)' : 'inset 0 1px 1px rgba(255,255,255,0.1), 0 20px 40px rgba(0,0,0,0.5)',
+                   boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.1), 0 20px 40px rgba(0,0,0,0.5)',
                  }}
                >
-                  {/* Glossy Overlay */}
-                  {material === 'glossy' && (
-                    <div className="absolute inset-0 bg-gradient-to-tr from-white/30 to-transparent pointer-events-none z-0"></div>
-                  )}
                   
                   {/* Draggable Elements */}
                   {currentSideState.elements.map(el => {
@@ -286,7 +313,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                          className={`cursor-grab active:cursor-grabbing p-1 border ${selectedElementId === el.id ? 'border-indigo-400 border-dashed bg-white/5' : 'border-transparent'} hover:border-white/30 rounded transition-colors`}
                        >
                          {el.type === 'text' && (
-                           <div style={{ fontSize: el.fontSize }} className="select-none leading-none font-serif whitespace-nowrap">
+                           <div style={{ fontSize: el.fontSize, fontFamily: el.fontFamily || 'var(--font-serif)' }} className="select-none leading-none whitespace-nowrap">
                              {el.content}
                            </div>
                          )}
@@ -321,7 +348,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                  <div>
                     <h3 className="text-xl font-serif text-white mb-6">Card Settings</h3>
                     <h4 className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-4">Background Color</h4>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-3 items-center">
                        {COLORS.map((c) => (
                           <button
                             key={c.name}
@@ -334,15 +361,16 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                              </span>
                           </button>
                        ))}
+                       <label className="w-10 h-10 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center cursor-pointer hover:border-white/60 transition-all overflow-hidden relative">
+                         <div className="w-full h-full" style={{ backgroundColor: currentSideState.bgColor }}></div>
+                         <input 
+                           type="color" 
+                           value={currentSideState.bgColor}
+                           onChange={(e) => updateCurrentSide({ bgColor: e.target.value })}
+                           className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                         />
+                       </label>
                     </div>
-                 </div>
-                 
-                 <div>
-                   <h4 className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-4">Finish Material</h4>
-                   <div className="flex space-x-2 bg-black/50 p-1 rounded-lg border border-white/10">
-                      <button onClick={() => setMaterial('matte')} className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded transition-colors ${material === 'matte' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Matte</button>
-                      <button onClick={() => setMaterial('glossy')} className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded transition-colors ${material === 'glossy' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Glossy</button>
-                   </div>
                  </div>
                  
                  <div className="pt-6 border-t border-white/10">
@@ -400,6 +428,34 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                      </div>
                      <div>
                        <label className="block text-[10px] uppercase tracking-widest font-bold mb-2 text-gray-500 mt-6 flex justify-between">
+                         <span>Font Family</span>
+                       </label>
+                       <select 
+                         value={selectedElement.fontFamily || 'var(--font-serif)'} 
+                         onChange={(e) => updateElement(selectedElement.id, { fontFamily: e.target.value })}
+                         className="w-full bg-black/50 border border-white/20 rounded p-2 text-white text-sm focus:outline-none focus:border-white"
+                       >
+                         <option value="var(--font-serif)">Default Serif</option>
+                         <option value="var(--font-sans)">Default Sans</option>
+                         <option value="'Playfair Display', serif">Playfair Display</option>
+                         <option value="'Montserrat', sans-serif">Montserrat</option>
+                         <option value="'Roboto', sans-serif">Roboto</option>
+                         <option value="'Oswald', sans-serif">Oswald</option>
+                         <option value="'Lora', serif">Lora</option>
+                         <option value="'Anton', sans-serif">Anton</option>
+                         <option value="'Caveat', cursive">Caveat</option>
+                         <option value="'Cinzel', serif">Cinzel</option>
+                         <option value="'Dancing Script', cursive">Dancing Script</option>
+                         <option value="'Fira Sans', sans-serif">Fira Sans</option>
+                         <option value="'Josefin Sans', sans-serif">Josefin Sans</option>
+                         <option value="'Merriweather', serif">Merriweather</option>
+                         <option value="'Nunito', sans-serif">Nunito</option>
+                         <option value="'Pacifico', cursive">Pacifico</option>
+                         <option value="'Ubuntu', sans-serif">Ubuntu</option>
+                       </select>
+                     </div>
+                     <div>
+                       <label className="block text-[10px] uppercase tracking-widest font-bold mb-2 text-gray-500 mt-6 flex justify-between">
                          <span>Font Size</span>
                          <span>{selectedElement.fontSize}px</span>
                        </label>
@@ -414,18 +470,18 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                    </>
                  )}
                  
-                 {selectedElement?.type === 'icon' && (
+                  {selectedElement?.type === 'icon' && (
                    <div>
                       <label className="block text-[10px] uppercase tracking-widest font-bold mb-4 text-gray-500">Select Icon</label>
-                      <div className="grid grid-cols-4 gap-2">
-                        {ICONS.map(i => (
+                      <div className="flex flex-wrap gap-2 h-48 overflow-y-auto pr-2 custom-scrollbar">
+                        {ICONS.map(({ id, label, component: IconComponent }) => (
                           <button 
-                            key={i.id}
-                            onClick={() => updateElement(selectedElement.id, { iconId: i.id })}
-                            className={`p-3 rounded-xl flex items-center justify-center transition-all ${selectedElement.iconId === i.id ? 'bg-white/10 text-white border border-white/20' : 'bg-black/50 text-gray-500 border border-transparent hover:text-white hover:bg-white/5'}`}
-                            title={i.label}
+                            key={id}
+                            onClick={() => updateElement(selectedElement.id, { iconId: id })}
+                            className={`p-3 rounded-xl flex items-center justify-center transition-all ${selectedElement.iconId === id ? 'bg-white/10 text-white border border-white/20' : 'bg-black/50 text-gray-500 border border-transparent hover:text-white hover:bg-white/5'}`}
+                            title={label}
                           >
-                            {i.component({ className: "w-6 h-6" })}
+                            <IconComponent className="w-5 h-5" />
                           </button>
                         ))}
                       </div>
@@ -495,7 +551,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                  {selectedElement?.type !== 'image' && (
                    <div>
                       <label className="block text-[10px] uppercase tracking-widest font-bold mb-4 text-gray-500 mt-6">Color</label>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 items-center">
                          {['#ffffff', '#f8f9fa', '#d4d4d8', '#71717a', '#111111', '#0f172a', '#064e3b', '#7f1d1d', '#b45309'].map(c => (
                            <button
                               key={c}
@@ -504,6 +560,15 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                               style={{ backgroundColor: c, outline: selectedElement.color === c ? '2px solid white' : 'none', outlineOffset: '2px' }}
                            />
                          ))}
+                         <label className="w-8 h-8 rounded-full border border-dashed border-white/30 flex items-center justify-center cursor-pointer hover:border-white/60 transition-all overflow-hidden relative" style={{ outline: !['#ffffff', '#f8f9fa', '#d4d4d8', '#71717a', '#111111', '#0f172a', '#064e3b', '#7f1d1d', '#b45309'].includes(selectedElement.color) ? '2px solid white' : 'none', outlineOffset: '2px' }}>
+                           <div className="w-full h-full" style={{ backgroundColor: selectedElement.color }}></div>
+                           <input 
+                             type="color" 
+                             value={selectedElement.color}
+                             onChange={(e) => updateElement(selectedElement.id, { color: e.target.value })}
+                             className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                           />
+                         </label>
                       </div>
                    </div>
                  )}
