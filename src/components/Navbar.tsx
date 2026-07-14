@@ -31,10 +31,7 @@ export default function Navbar({ currentPage, setCurrentPage }: NavbarProps) {
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={() => handleNav('hero')}>
-            <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-800 rounded-lg flex items-center justify-center border border-white/20">
-              <div className="w-4 h-4 rounded-full border-2 border-white/80"></div>
-            </div>
-            <span className="text-2xl font-bold tracking-tighter text-white uppercase font-sans">TapConnect</span>
+            <span className="text-2xl font-bold tracking-tighter text-white font-sans">tap&amp;con</span>
           </div>
           
           <div className="hidden md:flex items-center space-x-10 text-sm font-medium tracking-widest uppercase">
