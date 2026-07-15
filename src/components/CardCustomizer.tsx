@@ -1,9 +1,30 @@
 import { useState, useRef } from 'react';
 import { motion } from 'motion/react';
+import { toPng } from 'html-to-image';
 import { 
-  SmartphoneNfc, Star, Utensils, Wifi, Type, Trash2, MonitorSmartphone, Image as ImageIcon, Square, ArrowUp, ArrowDown,
+  SmartphoneNfc, Star, Utensils, Wifi, Type, Trash2, RectangleHorizontal, RectangleVertical, Image as ImageIcon, Square, ArrowUp, ArrowDown,
   Waves, Coffee, ShoppingBag, Heart, User, MapPin, Phone, Mail, Globe, Instagram, Facebook, Twitter, Linkedin, Github, MessageCircle, Music, Video, Camera, Anchor, Zap, Shield, Sun, Moon, Cloud, Droplet, Hexagon, Triangle, Circle
 } from 'lucide-react';
+
+const ContactlessIcon = ({ className, ...props }: any) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <g transform="translate(-4.5, 0)">
+      <path d="M13 8.32a7.43 7.43 0 0 1 0 7.36" />
+      <path d="M16.46 6.21a11.76 11.76 0 0 1 0 11.58" />
+      <path d="M19.91 4.1a15.91 15.91 0 0 1 .01 15.8" />
+    </g>
+  </svg>
+);
 
 const COLORS = [
   { name: 'Obsidian', value: '#111111', textDark: false },
@@ -15,6 +36,7 @@ const COLORS = [
 ];
 
 const ICONS = [
+  { id: 'contactless', label: 'Tap', component: ContactlessIcon },
   { id: 'nfc', label: 'NFC', component: SmartphoneNfc },
   { id: 'review', label: 'Star', component: Star },
   { id: 'menu', label: 'Menu', component: Utensils },
@@ -88,15 +110,16 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     front: {
       bgColor: COLORS[0].value,
       elements: [
-        { id: 'f1', type: 'icon', iconId: 'nfc', x: 20, y: 20, z: 1, color: '#ffffff', opacity: 1 },
-        { id: 'f2', type: 'text', content: 'Your Business', x: 20, y: 120, z: 2, color: '#ffffff', fontSize: 24, opacity: 1 },
-        { id: 'f3', type: 'text', content: 'Tap to connect', x: 20, y: 160, z: 3, color: '#aaaaaa', fontSize: 12, opacity: 1 }
+        { id: 'f1', type: 'text', content: 'Thank you for your visit!', x: 90, y: 100, z: 1, color: '#ffffff', fontSize: 26, fontFamily: '"Caveat", cursive', opacity: 1 },
+        { id: 'f2', type: 'text', content: 'Review by tapping', x: 125, y: 145, z: 2, color: '#ffffff', fontSize: 22, fontFamily: '"Caveat", cursive', opacity: 1 },
+        { id: 'f3', type: 'icon', iconId: 'contactless', x: 330, y: 106, z: 3, color: '#ffffff', opacity: 1 },
+        { id: 'f4', type: 'text', content: 'tap&con', x: 335, y: 220, z: 4, color: '#ffffff', fontSize: 16, fontFamily: '"Caveat", cursive', opacity: 1 }
       ]
     },
     back: {
       bgColor: COLORS[0].value,
       elements: [
-        { id: 'b1', type: 'text', content: 'Scan or Tap', x: 100, y: 100, z: 1, color: '#ffffff', fontSize: 16, opacity: 1 }
+        { id: 'b1', type: 'text', content: 'Your business name', x: 130, y: 110, z: 1, color: '#ffffff', fontSize: 26, fontFamily: '"Caveat", cursive', opacity: 1 }
       ]
     }
   });
@@ -116,6 +139,29 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       ...prev,
       [activeSide]: { ...prev[activeSide], ...updates }
     }));
+  };
+
+  const handleOrientationChange = (newOrientation: Orientation) => {
+    if (newOrientation === orientation) return;
+    
+    const newWidth = newOrientation === 'horizontal' ? 400 : 252;
+    const newHeight = newOrientation === 'horizontal' ? 252 : 400;
+    
+    setCardData(prev => {
+      const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+      
+      const updateElements = (elements: ElementData[]) => elements.map(el => ({
+        ...el,
+        x: clamp(el.x, 0, newWidth - 40),
+        y: clamp(el.y, 0, newHeight - 40)
+      }));
+
+      return {
+        front: { ...prev.front, elements: updateElements(prev.front.elements) },
+        back: { ...prev.back, elements: updateElements(prev.back.elements) }
+      };
+    });
+    setOrientation(newOrientation);
   };
 
   const updateElement = (id: string, updates: Partial<ElementData>) => {
@@ -231,15 +277,43 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onBookMeeting) {
-      onBookMeeting();
-    } else {
-      const contactSection = document.getElementById('contact');
-      if (contactSection) {
-        contactSection.scrollIntoView({ behavior: 'smooth' });
+  const handleDownload = async () => {
+    setSelectedElementId(null); // Clear selection borders
+
+    // Small delay to ensure state updates (borders removed) before capturing
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    try {
+      const frontEl = document.getElementById('capture-front');
+      const backEl = document.getElementById('capture-back');
+      
+      const options = {
+        pixelRatio: 2,
+        cacheBust: true,
+      };
+      
+      if (frontEl) {
+        const dataUrl = await toPng(frontEl, options);
+        const link = document.createElement('a');
+        link.download = 'tap-and-con-front.png';
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
+      
+      if (backEl) {
+        const dataUrl = await toPng(backEl, options);
+        const link = document.createElement('a');
+        link.download = 'tap-and-con-back.png';
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error: any) {
+      console.error("Error generating image:", error);
+      alert("Error generating your design: " + (error?.message || error));
     }
   };
 
@@ -268,11 +342,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                  <button onClick={() => { setActiveSide('back'); setSelectedElementId(null); }} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors ${activeSide === 'back' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Back Side</button>
               </div>
               <div className="flex space-x-1">
-                 <button onClick={() => setOrientation('horizontal')} className={`p-2 rounded-lg transition-colors ${orientation === 'horizontal' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Horizontal">
-                   <MonitorSmartphone className="w-5 h-5 rotate-90" />
+                 <button onClick={() => handleOrientationChange('horizontal')} className={`p-2 rounded-lg transition-colors ${orientation === 'horizontal' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Horizontal">
+                   <RectangleHorizontal className="w-5 h-5" />
                  </button>
-                 <button onClick={() => setOrientation('vertical')} className={`p-2 rounded-lg transition-colors ${orientation === 'vertical' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Vertical">
-                   <MonitorSmartphone className="w-5 h-5" />
+                 <button onClick={() => handleOrientationChange('vertical')} className={`p-2 rounded-lg transition-colors ${orientation === 'vertical' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Vertical">
+                   <RectangleVertical className="w-5 h-5" />
                  </button>
               </div>
             </div>
@@ -282,21 +356,27 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                {/* Ambient Glow */}
                <div className="absolute inset-0 opacity-20 blur-[100px] transition-colors duration-700 pointer-events-none" style={{ backgroundColor: currentSideState.bgColor }}></div>
                
-               {/* The Card */}
-               <motion.div 
-                 key={activeSide}
-                 initial={{ scaleX: 0 }}
-                 animate={{ scaleX: 1 }}
-                 transition={{ duration: 0.4, ease: "easeInOut" }}
+               {/* The Card Wrapper for Stable Drag Constraints */}
+               <div 
                  ref={containerRef}
-                 className="relative rounded-2xl shadow-2xl transition-all duration-500 z-10 overflow-hidden shrink-0"
+                 className="relative shrink-0 perspective-1000"
                  style={{
                    width: orientation === 'horizontal' ? '400px' : '252px',
                    height: orientation === 'horizontal' ? '252px' : '400px',
-                   backgroundColor: currentSideState.bgColor,
-                   boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.1), 0 20px 40px rgba(0,0,0,0.5)',
                  }}
                >
+                 {/* The Card */}
+                 <motion.div 
+                   key={`${activeSide}-${orientation}`}
+                   initial={{ opacity: 0, rotateY: 90 }}
+                   animate={{ opacity: 1, rotateY: 0 }}
+                   transition={{ duration: 0.4, ease: "easeInOut" }}
+                   className="absolute inset-0 rounded-2xl shadow-2xl transition-all duration-500 z-10 overflow-hidden"
+                   style={{
+                     backgroundColor: currentSideState.bgColor,
+                     boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.1), 0 20px 40px rgba(0,0,0,0.5)',
+                   }}
+                 >
                   
                   {/* Draggable Elements */}
                   {currentSideState.elements.map(el => {
@@ -332,6 +412,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                      );
                   })}
                </motion.div>
+               </div>
             </div>
             
             <p className="text-center text-xs text-gray-500 mt-4">
@@ -610,14 +691,43 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             )}
 
             <div className="pt-8 mt-auto border-t border-white/10">
-              <button onClick={handleSubmit} className="w-full px-8 py-5 bg-white text-black font-bold uppercase tracking-widest rounded-sm hover:bg-gray-200 transition-all">
-                Submit Design
+              <button onClick={handleDownload} className="w-full px-8 py-5 bg-white text-black font-bold uppercase tracking-widest rounded-sm hover:bg-gray-200 transition-all flex items-center justify-center">
+                Download Design
               </button>
             </div>
             
           </div>
         </div>
       </div>
+
+      {/* Hidden Capture Area for Downloads */}
+      <div className="fixed top-[-9999px] left-[-9999px] z-[-10] pointer-events-none opacity-100">
+        {(['front', 'back'] as Side[]).map(side => (
+          <div 
+            key={side}
+            id={`capture-${side}`} 
+            className="relative rounded-2xl overflow-hidden" 
+            style={{
+                width: orientation === 'horizontal' ? '400px' : '252px',
+                height: orientation === 'horizontal' ? '252px' : '400px',
+                backgroundColor: cardData[side].bgColor,
+            }}
+          >
+            {cardData[side].elements.map(el => {
+                const IconComp = el.type === 'icon' ? ICONS.find(i => i.id === el.iconId)?.component || SmartphoneNfc : null;
+                return (
+                  <div key={el.id} style={{ transform: `translate(${el.x}px, ${el.y}px) rotate(${el.rotation || 0}deg)`, zIndex: el.z || 1, position: 'absolute', top: 0, left: 0, color: el.color, opacity: el.opacity ?? 1 }}>
+                    {el.type === 'text' && <div style={{ fontSize: el.fontSize, fontFamily: el.fontFamily || 'var(--font-serif)' }} className="leading-none whitespace-nowrap">{el.content}</div>}
+                    {el.type === 'icon' && IconComp && <div><IconComp className="w-10 h-10" /></div>}
+                    {el.type === 'image' && el.imageUrl && <img src={el.imageUrl} alt="img" style={{ width: el.width || 100, height: 'auto' }} />}
+                    {el.type === 'shape' && <div style={{ width: el.width || 100, height: el.height || 100, backgroundColor: el.color, borderRadius: el.borderRadius || 0 }} />}
+                  </div>
+                );
+            })}
+          </div>
+        ))}
+      </div>
+
     </section>
   );
 }

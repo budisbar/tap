@@ -35,10 +35,10 @@ export default function Navbar({ currentPage, setCurrentPage }: NavbarProps) {
           </div>
           
           <div className="hidden md:flex items-center space-x-10 text-sm font-medium tracking-widest uppercase">
-            <button onClick={() => handleNav('products')} className="text-gray-400 hover:text-white border-b border-transparent hover:border-white transition-all pb-1">Products</button>
+            <button onClick={() => handleNav('products')} className="text-gray-400 hover:text-white border-b border-transparent hover:border-white transition-all pb-1">How it works</button>
             <button onClick={() => handleNav('studio')} className={`pb-1 border-b transition-all ${currentPage === 'studio' ? 'text-white border-white' : 'text-gray-400 hover:text-white border-transparent hover:border-white'}`}>Design Studio</button>
             <button onClick={() => handleNav('contact')} className="px-6 py-2 border border-white/30 rounded-full hover:bg-white hover:text-black transition-all">
-              Book Meeting
+              Contact us
             </button>
           </div>
 
@@ -52,9 +52,9 @@ export default function Navbar({ currentPage, setCurrentPage }: NavbarProps) {
       
       {isOpen && (
         <div className="md:hidden bg-[#111] border-b border-white/10 px-4 pt-4 pb-6 space-y-4 shadow-2xl">
-          <button onClick={() => handleNav('products')} className="block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium text-gray-400 hover:text-white">Products</button>
+          <button onClick={() => handleNav('products')} className="block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium text-gray-400 hover:text-white">How it works</button>
           <button onClick={() => handleNav('studio')} className={`block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium ${currentPage === 'studio' ? 'text-white' : 'text-gray-400 hover:text-white'}`}>Design Studio</button>
-          <button onClick={() => handleNav('contact')} className="block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium text-white">Book Meeting</button>
+          <button onClick={() => handleNav('contact')} className="block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium text-white">Contact us</button>
         </div>
       )}
     </nav>

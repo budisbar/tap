@@ -28,14 +28,14 @@ export default function App() {
       <main>
         {currentPage === 'home' ? (
           <>
-            <Hero />
-            <WhyReviews />
+            <Hero onDesignCard={() => { setCurrentPage('studio'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
             <Products />
+            <WhyReviews />
             <Contact />
           </>
         ) : (
           <div className="pt-24 pb-12 min-h-screen">
-             <CardCustomizer onBookMeeting={goToContact} />
+            <CardCustomizer onBookMeeting={goToContact} />
           </div>
         )}
       </main>
