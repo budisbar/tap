@@ -62,7 +62,7 @@ export default function WhyReviews() {
             transition={{ delay: 0.1 }}
             className="text-lg text-gray-400 font-light leading-relaxed"
           >
-            In today's digital and AI-driven landscape, your reputation is everything. Frictionless feedback isn't just nice to have—it's essential for dominating search algorithms and landing future clients.
+            In today's digital and AI-driven landscape, your reputation is everything. Frictionless feedback isn't just nice to have, it's essential for dominating search algorithms and landing future clients.
           </motion.p>
         </div>
 

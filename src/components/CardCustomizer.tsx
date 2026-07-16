@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { motion } from 'motion/react';
+import { useState, useRef, useEffect } from 'react';
+import { motion, useMotionValue } from 'motion/react';
 import { toPng } from 'html-to-image';
 import { 
   SmartphoneNfc, Star, Utensils, Wifi, Type, Trash2, RectangleHorizontal, RectangleVertical, Image as ImageIcon, Square, ArrowUp, ArrowDown,
@@ -98,6 +98,57 @@ interface CardState {
   elements: ElementData[];
 }
 
+const DraggableElement = ({ el, isSelected, containerRef, onSelect, onUpdatePosition, IconComp }: any) => {
+  const x = useMotionValue(el.x);
+  const y = useMotionValue(el.y);
+
+  useEffect(() => {
+    x.set(el.x);
+    y.set(el.y);
+  }, [el.x, el.y, x, y]);
+
+  return (
+    <motion.div
+      drag
+      dragMomentum={false}
+      dragConstraints={containerRef}
+      onDragEnd={(e, info) => {
+        onUpdatePosition(el.id, Math.round(x.get()), Math.round(y.get()));
+      }}
+      onClick={(e) => { e.stopPropagation(); onSelect(el.id); }}
+      style={{
+        x,
+        y,
+        zIndex: el.z || 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        color: el.color,
+        opacity: el.opacity ?? 1,
+        rotate: el.rotation || 0
+      }}
+      className={`cursor-grab active:cursor-grabbing p-1 border ${isSelected ? 'border-indigo-400 border-dashed bg-white/5' : 'border-transparent'} hover:border-white/30 rounded transition-colors`}
+    >
+      {el.type === 'text' && (
+        <div style={{ fontSize: el.fontSize, fontFamily: el.fontFamily || 'var(--font-serif)' }} className="select-none leading-none whitespace-nowrap">
+          {el.content}
+        </div>
+      )}
+      {el.type === 'icon' && IconComp && (
+        <div className="select-none">
+          <IconComp className="w-10 h-10" />
+        </div>
+      )}
+      {el.type === 'image' && el.imageUrl && (
+        <img src={el.imageUrl} alt="Custom" style={{ width: el.width || 100, height: 'auto', pointerEvents: 'none' }} className="select-none" draggable={false} />
+      )}
+      {el.type === 'shape' && (
+        <div style={{ width: el.width || 100, height: el.height || 100, backgroundColor: el.color, borderRadius: el.borderRadius || 0 }} className="select-none pointer-events-none" />
+      )}
+    </motion.div>
+  );
+};
+
 interface CardCustomizerProps {
   onBookMeeting?: () => void;
 }
@@ -110,7 +161,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     front: {
       bgColor: COLORS[0].value,
       elements: [
-        { id: 'f1', type: 'text', content: 'Thank you for your visit!', x: 90, y: 100, z: 1, color: '#ffffff', fontSize: 26, fontFamily: '"Caveat", cursive', opacity: 1 },
+        { id: 'f1', type: 'text', content: 'Enjoyed your visit?', x: 90, y: 100, z: 1, color: '#ffffff', fontSize: 26, fontFamily: '"Caveat", cursive', opacity: 1 },
         { id: 'f2', type: 'text', content: 'Review by tapping', x: 125, y: 145, z: 2, color: '#ffffff', fontSize: 22, fontFamily: '"Caveat", cursive', opacity: 1 },
         { id: 'f3', type: 'icon', iconId: 'contactless', x: 330, y: 106, z: 3, color: '#ffffff', opacity: 1 },
         { id: 'f4', type: 'text', content: 'tap&con', x: 335, y: 220, z: 4, color: '#ffffff', fontSize: 16, fontFamily: '"Caveat", cursive', opacity: 1 }
@@ -270,12 +321,38 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     setSelectedElementId(null);
   };
 
-  const handleDragEnd = (info: any, id: string) => {
-    const el = currentSideState.elements.find(e => e.id === id);
-    if (el) {
-      updateElement(id, { x: el.x + info.offset.x, y: el.y + info.offset.y });
-    }
-  };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedElementId) return;
+      
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
+        return;
+      }
+
+      const step = e.shiftKey ? 10 : 1;
+      let dx = 0;
+      let dy = 0;
+
+      switch (e.key) {
+        case 'ArrowUp': dy = -step; break;
+        case 'ArrowDown': dy = step; break;
+        case 'ArrowLeft': dx = -step; break;
+        case 'ArrowRight': dx = step; break;
+        default: return;
+      }
+
+      e.preventDefault();
+      
+      const el = currentSideState.elements.find(e => e.id === selectedElementId);
+      if (el) {
+        updateElement(selectedElementId, { x: el.x + dx, y: el.y + dy });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedElementId, currentSideState.elements]);
 
   const handleDownload = async () => {
     setSelectedElementId(null); // Clear selection borders
@@ -382,33 +459,15 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                   {currentSideState.elements.map(el => {
                      const IconComp = el.type === 'icon' ? ICONS.find(i => i.id === el.iconId)?.component || SmartphoneNfc : null;
                      return (
-                       <motion.div
+                       <DraggableElement
                          key={el.id}
-                         drag
-                         dragMomentum={false}
-                         dragConstraints={containerRef}
-                         onDragEnd={(e, info) => handleDragEnd(info, el.id)}
-                         onClick={(e) => { e.stopPropagation(); setSelectedElementId(el.id); }}
-                         style={{ x: el.x, y: el.y, zIndex: el.z || 1, position: 'absolute', top: 0, left: 0, color: el.color, opacity: el.opacity ?? 1, rotate: el.rotation || 0 }}
-                         className={`cursor-grab active:cursor-grabbing p-1 border ${selectedElementId === el.id ? 'border-indigo-400 border-dashed bg-white/5' : 'border-transparent'} hover:border-white/30 rounded transition-colors`}
-                       >
-                         {el.type === 'text' && (
-                           <div style={{ fontSize: el.fontSize, fontFamily: el.fontFamily || 'var(--font-serif)' }} className="select-none leading-none whitespace-nowrap">
-                             {el.content}
-                           </div>
-                         )}
-                         {el.type === 'icon' && IconComp && (
-                           <div className="select-none">
-                             <IconComp className="w-10 h-10" />
-                           </div>
-                         )}
-                         {el.type === 'image' && el.imageUrl && (
-                           <img src={el.imageUrl} alt="Custom" style={{ width: el.width || 100, height: 'auto', pointerEvents: 'none' }} className="select-none" draggable={false} />
-                         )}
-                         {el.type === 'shape' && (
-                           <div style={{ width: el.width || 100, height: el.height || 100, backgroundColor: el.color, borderRadius: el.borderRadius || 0 }} className="select-none pointer-events-none" />
-                         )}
-                       </motion.div>
+                         el={el}
+                         isSelected={selectedElementId === el.id}
+                         containerRef={containerRef}
+                         onSelect={setSelectedElementId}
+                         onUpdatePosition={(id: string, x: number, y: number) => updateElement(id, { x, y })}
+                         IconComp={IconComp}
+                       />
                      );
                   })}
                </motion.div>
