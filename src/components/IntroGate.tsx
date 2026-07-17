@@ -6,19 +6,19 @@ interface IntroGateProps {
   gateHeight: number;
 }
 
-const AnimatedPhone = ({ scrollY, range, startX, startY, startRotate, tapX, tapY, tapRotate, endX, endY, endRotate, children }: any) => {
+const AnimatedPhone = ({ scrollY, range, startX, startY, startRotate, tapX, tapY, tapRotate, children }: any) => {
   const [t1, t2, t3, t4] = range;
   
-  const x = useTransform(scrollY, [t1, t2, t3, t4], [startX, tapX, tapX, endX]);
-  const y = useTransform(scrollY, [t1, t2, t3, t4], [startY, tapY, tapY, endY]);
-  const rotate = useTransform(scrollY, [t1, t2, t3, t4], [startRotate, tapRotate, tapRotate, endRotate]);
+  const x = useTransform(scrollY, [t1, t2, t3, t4], [startX, tapX, tapX, startX]);
+  const y = useTransform(scrollY, [t1, t2, t3, t4], [startY, tapY, tapY, startY]);
+  const rotate = useTransform(scrollY, [t1, t2, t3, t4], [startRotate, tapRotate, tapRotate, startRotate]);
   
   const scale = useTransform(scrollY, [t2, t2 + 50, t2 + 100], [1, 0.95, 1]);
   
   const screen1Opacity = useTransform(scrollY, [t2 + 50, t2 + 150], [1, 0]);
   const screen2Opacity = useTransform(scrollY, [t2 + 50, t2 + 150], [0, 1]);
 
-  const opacity = useTransform(scrollY, [t1 - 100, t1, t4, t4 + 100], [0, 1, 1, 0]);
+  const opacity = useTransform(scrollY, [t1, t1 + 50], [0, 1]);
 
   return (
     <>
@@ -66,58 +66,31 @@ const Ripple = ({ scrollY, t2, tapX, tapY }: any) => {
   )
 }
 
-export default function IntroGate({ scrollY, gateHeight }: IntroGateProps) {
+export default function IntroGate({ scrollY }: IntroGateProps) {
   // Timeline:
-  // 0 - 2800: Phones fly in simultaneously
-  // 3000 - 4000: Doors swing open to the front
-
-  const leftDoorRotateY = useTransform(scrollY, [3000, 4000], [0, 90]);
-  const rightDoorRotateY = useTransform(scrollY, [3000, 4000], [0, -90]);
+  // 0 - 800: Phones fly in simultaneously and tap
+  // 800 - 1200: Phones display their new screens
+  // 1200 - 1500: Everything fades away
   
-  const solidOpacity = useTransform(scrollY, [2999, 3000], [1, 0]);
-  const splitOpacity = useTransform(scrollY, [2999, 3000], [0, 1]);
-  
-  const gateOpacity = useTransform(scrollY, [4000, 4100], [1, 0]);
-  const pointerEvents = useTransform(scrollY, [3990, 4000], ["auto", "none"] as any);
-
-  const GateContent = ({ isLeft }: { isLeft: boolean }) => (
-    <div className={`absolute top-0 h-full w-[100vw] flex items-center justify-center ${isLeft ? 'left-0' : 'right-0'}`}>
-      <div className="flex items-center space-x-4 md:space-x-8">
-        <span className="text-white text-7xl md:text-[9rem] font-serif font-light tracking-tighter lowercase">tap&con</span>
-        <Wifi className="w-12 h-12 md:w-24 md:h-24 text-white transform rotate-90" />
-      </div>
-    </div>
-  );
+  const gateOpacity = useTransform(scrollY, [1200, 1500], [1, 0]);
+  const pointerEvents = useTransform(scrollY, [1490, 1500], ["auto", "none"] as any);
 
   return (
-    <motion.div style={{ pointerEvents, opacity: gateOpacity }} className="fixed inset-0 w-full h-full overflow-hidden z-50">
-      <div className="absolute inset-0 w-full h-full" style={{ perspective: '1200px' }}>
-        
-        <motion.div style={{ opacity: solidOpacity }} className="absolute inset-0 w-full h-full bg-[#050505] z-30 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-          <GateContent isLeft={true} />
-        </motion.div>
-
-        <motion.div 
-          style={{ opacity: splitOpacity, rotateY: leftDoorRotateY, transformOrigin: 'left center' }} 
-          className="absolute inset-y-0 left-0 w-1/2 bg-[#050505] overflow-hidden shadow-[10px_0_50px_rgba(0,0,0,0.5)] z-20"
-        >
-          <GateContent isLeft={true} />
-        </motion.div>
-
-        <motion.div 
-          style={{ opacity: splitOpacity, rotateY: rightDoorRotateY, transformOrigin: 'right center' }} 
-          className="absolute inset-y-0 right-0 w-1/2 bg-[#050505] overflow-hidden shadow-[-10px_0_50px_rgba(0,0,0,0.5)] z-20"
-        >
-          <GateContent isLeft={false} />
-        </motion.div>
+    <motion.div style={{ pointerEvents, opacity: gateOpacity }} className="fixed inset-0 w-full h-full overflow-hidden z-50 bg-[#050505]">
+      
+      {/* Background card graphic */}
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center pointer-events-none">
+        <div className="flex items-center space-x-4 md:space-x-8">
+          <span className="text-white text-7xl md:text-[9rem] font-serif font-light tracking-tighter lowercase">tap&con</span>
+          <Wifi className="w-12 h-12 md:w-24 md:h-24 text-white transform rotate-90" />
+        </div>
       </div>
 
       {/* Phone 1: Google Reviews (Bottom Right) */}
       <AnimatedPhone 
-        scrollY={scrollY} range={[0, 1000, 1800, 2800]}
+        scrollY={scrollY} range={[0, 800, 1200, 1500]}
         startX="50vw" startY="50vh" startRotate={25}
         tapX="15vw" tapY="22vh" tapRotate={-5}
-        endX="50vw" endY="50vh" endRotate={25}
       >
         <div className="flex items-center space-x-2 mb-4">
           <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">G</div>
@@ -138,10 +111,9 @@ export default function IntroGate({ scrollY, gateHeight }: IntroGateProps) {
 
       {/* Phone 2: Social Media (Top Left) */}
       <AnimatedPhone 
-        scrollY={scrollY} range={[0, 1000, 1800, 2800]}
+        scrollY={scrollY} range={[0, 800, 1200, 1500]}
         startX="-50vw" startY="-50vh" startRotate={-25}
         tapX="-15vw" tapY="-22vh" tapRotate={5}
-        endX="-50vw" endY="-50vh" endRotate={-25}
       >
         <div className="flex items-center space-x-3 mb-4">
           <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500 p-[2px]">
@@ -165,10 +137,9 @@ export default function IntroGate({ scrollY, gateHeight }: IntroGateProps) {
 
       {/* Phone 3: Restaurant Menu (Bottom Left) */}
       <AnimatedPhone 
-        scrollY={scrollY} range={[0, 1000, 1800, 2800]}
+        scrollY={scrollY} range={[0, 800, 1200, 1500]}
         startX="-50vw" startY="50vh" startRotate={-20}
         tapX="-18vw" tapY="20vh" tapRotate={10}
-        endX="-50vw" endY="50vh" endRotate={-20}
       >
         <div className="w-full h-24 bg-orange-100 rounded-lg mb-3 flex items-center justify-center">
           <span className="text-orange-500 font-serif text-lg">The Artisan</span>
@@ -189,10 +160,9 @@ export default function IntroGate({ scrollY, gateHeight }: IntroGateProps) {
 
       {/* Phone 4: LinkedIn Profile (Top Right) */}
       <AnimatedPhone 
-        scrollY={scrollY} range={[0, 1000, 1800, 2800]}
+        scrollY={scrollY} range={[0, 800, 1200, 1500]}
         startX="50vw" startY="-50vh" startRotate={20}
         tapX="18vw" tapY="-20vh" tapRotate={-10}
-        endX="50vw" endY="-50vh" endRotate={20}
       >
         <div className="absolute top-0 left-0 w-full h-24 bg-blue-200"></div>
         <div className="pt-16 px-2 relative z-10">

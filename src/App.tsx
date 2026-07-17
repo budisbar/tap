@@ -22,7 +22,7 @@ export default function App() {
   });
 
   const { scrollY } = useScroll();
-  const gateHeight = 4000;
+  const gateHeight = 1500;
   
   // Use CSS fixed positioning to perfectly lock the page without jitter
   const [isPinned, setIsPinned] = useState(true);
