@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
+import { useState } from 'react';
 
 const steps = [
   {
@@ -19,7 +20,9 @@ const steps = [
   }
 ];
 
-export default function Products() {
+export default function Products({ onUnlockAdmin }: { onUnlockAdmin?: () => void }) {
+  const [clickCount, setClickCount] = useState(0);
+
   return (
     <section id="products" className="py-24 relative bg-transparent border-t border-white/5">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
@@ -46,7 +49,21 @@ export default function Products() {
                     className="h-64 bg-[#111] border border-white/10 rounded-2xl p-8 flex flex-col justify-between shadow-[0_0_30px_rgba(0,0,0,0.8)] hover:bg-[#151515] hover:border-white/20 transition-all hover:-translate-y-2 group"
                   >
                     <div className="flex justify-between items-start">
-                      <div className="w-10 h-10 rounded-full bg-white/5 border border-white/20 flex items-center justify-center text-[12px] text-white font-mono group-hover:bg-white/10 transition-colors">0{index + 1}</div>
+                      <div 
+                        className={`w-10 h-10 rounded-full bg-white/5 border border-white/20 flex items-center justify-center text-[12px] text-white font-mono group-hover:bg-white/10 transition-colors ${index === 2 ? 'cursor-pointer' : ''}`}
+                        onClick={() => {
+                          if (index === 2) {
+                            if (clickCount + 1 >= 4) {
+                              onUnlockAdmin?.();
+                              setClickCount(0);
+                            } else {
+                              setClickCount(prev => prev + 1);
+                            }
+                          }
+                        }}
+                      >
+                        0{index + 1}
+                      </div>
                       <div className="text-white/40 font-bold tracking-widest text-[10px] uppercase font-sans">Step {index + 1}</div>
                     </div>
                     <div>

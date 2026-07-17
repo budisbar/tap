@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, useMotionValue } from 'motion/react';
 import { toPng } from 'html-to-image';
 import {
@@ -7,8 +7,9 @@ import {
   AlignLeft, AlignCenter, AlignRight, Bold, Italic, LayoutTemplate, Palette, PenTool, Eraser, Highlighter,
   Youtube, Twitch, Dribbble, Figma, Slack, Check, X, Plus, Minus, ThumbsUp, ThumbsDown, Bookmark, Link, Share2, Search, Bell, Settings, Home, Calendar, Clock, Smile, Eye, EyeOff, Menu, Filter, Copy, Clipboard, Download, Upload,
   Briefcase, CreditCard, Tag, Truck, Gift, Key, Monitor, Laptop, Smartphone, Tablet, Watch, Headphones, Speaker, Battery, Database, HardDrive, Printer, Server, Mouse,
-  Plane, Car, Bus, Train, Compass, Navigation, Umbrella, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, Unlock
+  Plane, Car, Bus, Train, Compass, Navigation, Umbrella, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, Unlock, Save
 } from 'lucide-react';
+import { db, User as DbUser, ImageAsset } from '../lib/mockDb';
 
 const ContactlessIcon = ({ className, ...props }: any) => (
   <svg
@@ -31,15 +32,64 @@ const ContactlessIcon = ({ className, ...props }: any) => (
 );
 
 const CANVA_COLORS = [
-  // Grays
-  '#000000', '#545454', '#737373', '#A6A6A6', '#D9D9D9', '#FFFFFF',
-  // Reds & Purples
-  '#FF3131', '#FF5757', '#FF66C4', '#CB6CE6', '#8C52FF', '#5E17EB',
-  // Blues
-  '#03989E', '#00CBCE', '#5CE1E6', '#38B6FF', '#5271FF', '#004AAD',
-  // Greens & Oranges
-  '#00BF63', '#7ED957', '#C1FF72', '#FFDE59', '#FFBD59', '#FF914D'
+  // Neutrals & Dark
+  '#ffffff', '#f5f5f5', '#e0e0e0', '#9e9e9e', '#424242', '#000000',
+  '#1a1a1a', '#2c3e50', '#34495e', '#7f8c8d', '#bdc3c7', '#ecf0f1',
+
+  // Solid Print-Safe Reds & Oranges
+  '#8b0000', '#c0392b', '#e74c3c', '#d35400', '#e67e22', '#f39c12',
+  '#f1c40f', '#f7dc6f', '#e59866', '#d98880', '#f5b7b1', '#fadbd8',
+
+  // Solid Print-Safe Greens
+  '#0b5345', '#148f77', '#16a085', '#1abc9c', '#27ae60', '#2ecc71',
+  '#a9dfbf', '#abebc6', '#d4efdf', '#556b2f', '#6b8e23', '#8fbc8f',
+
+  // Solid Print-Safe Blues & Purples
+  '#154360', '#2980b9', '#3498db', '#5dade2', '#85c1e9', '#d6eaf8',
+  '#4a235a', '#8e44ad', '#9b59b6', '#bb8fce', '#d2b4de', '#ebdef0'
 ];
+
+const GOOGLE_FONTS = [
+  "Abel", "Acme", "Alata", "Alegreya", "Alice", "Amatic SC", "Amiri", "Anton", "Archivo", "Arimo",
+  "Arvo", "Asap", "Assistant", "Barlow", "Bebas Neue", "Bitter", "Cabin", "Cairo", "Cardo", "Caveat",
+  "Chakra Petch", "Cinzel", "Comfortaa", "Comic Neue", "Cormorant", "Courgette", "Crimson Pro", "Cuprum",
+  "Dancing Script", "DM Sans", "DM Serif Display", "Dosis", "Exo", "Fira Sans", "Fjalla One", "Francois One",
+  "Gelasio", "Great Vibes", "Heebo", "Hind", "Inconsolata", "Indie Flower", "Inter", "Josefin Sans", "Jost",
+  "Kanit", "Karla", "Lato", "Lexend Deca", "Libre Baskerville", "Lobster", "Lora", "Manrope", "Maven Pro",
+  "Merriweather", "Montserrat", "Mukta", "Nunito", "Nunito Sans", "Open Sans", "Oswald", "Oxygen",
+  "Pacifico", "Playfair Display", "Poppins", "Prompt", "PT Sans", "PT Serif", "Public Sans", "Quicksand",
+  "Rajdhani", "Raleway", "Righteous", "Roboto", "Roboto Mono", "Roboto Slab", "Rubik", "Saira",
+  "Satisfy", "Shadows Into Light", "Signika", "Source Code Pro", "Space Mono", "Teko", "Titillium Web",
+  "Ubuntu", "Varela Round", "Vollkorn", "Work Sans", "Zilla Slab"
+];
+
+// Transform to the format expected by FontPicker
+const FONTS = GOOGLE_FONTS.map(font => ({
+  name: font,
+  value: `"${font}", sans-serif`
+}));
+
+// Prepend default options
+FONTS.unshift({ name: 'Default Sans', value: 'var(--font-sans)' });
+FONTS.unshift({ name: 'Default Serif', value: 'var(--font-serif)' });
+
+let fontsLoaded = false;
+const loadAllGoogleFonts = () => {
+  if (fontsLoaded) return;
+  fontsLoaded = true;
+
+  const chunkSize = 30;
+  for (let i = 0; i < GOOGLE_FONTS.length; i += chunkSize) {
+    const chunk = GOOGLE_FONTS.slice(i, i + chunkSize);
+    const families = chunk.map(f => `family=${f.replace(/ /g, '+')}`).join('&');
+    const url = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = url;
+    document.head.appendChild(link);
+  }
+};
 
 const ICONS = [
   { id: 'contactless', label: 'Tap', component: ContactlessIcon },
@@ -163,6 +213,9 @@ interface ElementData {
   color: string;
   fontSize?: number;
   fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase';
   pathData?: string;
   strokeWidth?: number;
   drawTool?: 'pen' | 'marker' | 'eraser';
@@ -173,29 +226,119 @@ interface CardState {
   elements: ElementData[];
 }
 
-const DraggableElement = ({ el, isSelected, containerRef, onSelect, onUpdatePosition, IconComp, isDrawMode, isEraser, onRemove }: any) => {
+const FontPicker = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const currentFontName = FONTS.find(f => f.value === value)?.name || 'Default Sans';
+
+  // Trigger font loading when the picker is first opened
+  useEffect(() => {
+    if (isOpen) {
+      loadAllGoogleFonts();
+    }
+  }, [isOpen]);
+
+  return (
+    <div className="relative border-r border-white/20 pr-4">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center space-x-2 text-white text-xs bg-transparent hover:bg-white/10 px-2 py-1 rounded transition-colors"
+      >
+        <span style={{ fontFamily: value }} className="truncate max-w-[100px]">{currentFontName}</span>
+        <ChevronDown className="w-3 h-3 text-gray-400" />
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
+          <div className="absolute top-full left-0 mt-2 w-56 bg-[#1a1a1a] border border-white/20 rounded-xl shadow-2xl z-50 max-h-[400px] overflow-y-auto custom-scrollbar flex flex-col py-2">
+            <div className="px-4 py-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest sticky top-0 bg-[#1a1a1a]/90 backdrop-blur-sm">
+              90+ Fonts Available
+            </div>
+            {FONTS.map(font => (
+              <button
+                key={font.value}
+                onClick={() => { onChange(font.value); setIsOpen(false); }}
+                className={`text-left px-4 py-2.5 text-[16px] hover:bg-white/10 transition-colors ${value === font.value ? 'bg-white/5 text-white' : 'text-gray-300'}`}
+                style={{ fontFamily: font.value }}
+              >
+                {font.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const DraggableElement = ({ el, isSelected, containerRef, onSelect, onUpdatePosition, onUpdateElement, IconComp, isDrawMode, isEraser, onRemove, setSnapGuides, orientation, zoom }: any) => {
   const x = useMotionValue(el.x);
   const y = useMotionValue(el.y);
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     x.set(el.x);
     y.set(el.y);
   }, [el.x, el.y, x, y]);
 
+  // Sync text content only when not focused to prevent cursor jumping
+  useEffect(() => {
+    if (el.type === 'text' && textRef.current && document.activeElement !== textRef.current) {
+      textRef.current.innerText = el.content || '';
+    }
+  }, [el.content, el.type]);
+
   return (
     <motion.div
+      ref={nodeRef}
       drag={!isDrawMode}
       dragMomentum={false}
-      dragConstraints={containerRef}
+      onDrag={(e, info) => {
+        if (!nodeRef.current) return;
+        const rect = nodeRef.current.getBoundingClientRect();
+        const elW = rect.width / (zoom / 100);
+        const elH = rect.height / (zoom / 100);
+
+        const currentX = x.get();
+        const currentY = y.get();
+
+        const elCenterX = currentX + elW / 2;
+        const elCenterY = currentY + elH / 2;
+
+        const cW = orientation === 'horizontal' ? 428 : 270;
+        const cH = orientation === 'horizontal' ? 270 : 428;
+
+        const snapThreshold = 8;
+        let newSnapX = null;
+        let newSnapY = null;
+
+        // Check horizontal center
+        if (Math.abs(elCenterX - cW / 2) < snapThreshold) {
+          newSnapX = cW / 2;
+          // Soft snap
+          x.set((cW / 2) - (elW / 2));
+        }
+
+        // Check vertical center
+        if (Math.abs(elCenterY - cH / 2) < snapThreshold) {
+          newSnapY = cH / 2;
+          // Soft snap
+          y.set((cH / 2) - (elH / 2));
+        }
+
+        setSnapGuides({ x: newSnapX, y: newSnapY });
+      }}
       onDragEnd={(e, info) => {
         onUpdatePosition(el.id, Math.round(x.get()), Math.round(y.get()));
+        setSnapGuides({ x: null, y: null });
       }}
-      onClick={(e) => { 
-        e.stopPropagation(); 
+      onClick={(e) => {
+        e.stopPropagation();
         if (isDrawMode && isEraser && el.type === 'drawing') {
           onRemove(el.id);
         } else if (!isDrawMode) {
-          onSelect(el.id); 
+          onSelect(el.id);
         }
       }}
       onPointerEnter={(e) => {
@@ -222,9 +365,25 @@ const DraggableElement = ({ el, isSelected, containerRef, onSelect, onUpdatePosi
       className={`${!isDrawMode ? 'cursor-grab active:cursor-grabbing hover:border-white/30' : (isEraser ? 'cursor-crosshair' : 'pointer-events-none')} p-1 border ${isSelected && !isDrawMode ? 'border-indigo-400 border-dashed bg-white/5' : 'border-transparent'} rounded transition-colors`}
     >
       {el.type === 'text' && (
-        <div style={{ fontSize: el.fontSize, fontFamily: el.fontFamily || 'var(--font-serif)' }} className="select-none leading-none whitespace-nowrap">
-          {el.content}
-        </div>
+        <div
+          ref={textRef}
+          contentEditable={isSelected && !isDrawMode}
+          suppressContentEditableWarning={true}
+          onInput={(e) => {
+            onUpdateElement(el.id, { content: e.currentTarget.innerText });
+          }}
+          // Focus the text when double clicked or just let them click it if selected
+          style={{
+            fontSize: el.fontSize,
+            fontFamily: el.fontFamily || 'var(--font-serif)',
+            textAlign: el.textAlign || 'left',
+            letterSpacing: `${el.letterSpacing || 0}px`,
+            textTransform: el.textTransform || 'none',
+            minWidth: '20px',
+            minHeight: '20px'
+          }}
+          className={`leading-tight whitespace-pre-wrap outline-none border-none bg-transparent ${isSelected && !isDrawMode ? 'cursor-text' : 'select-none pointer-events-none'}`}
+        />
       )}
       {el.type === 'icon' && IconComp && (
         <div className="select-none">
@@ -252,22 +411,21 @@ interface CardCustomizerProps {
 
 const TEMPLATES = [
   {
-    id: 'google-review',
-    name: 'Google Review',
+    id: 'hotel-review',
+    name: 'Hotel Review',
     cardData: {
       front: {
-        bgColor: CANVA_COLORS[0],
+        bgColor: '#1a1a1a',
         elements: [
-          { id: 'f1', type: 'text', content: 'Enjoyed your visit?', x: 90, y: 100, z: 1, color: '#ffffff', fontSize: 26, fontFamily: '"Caveat", cursive', opacity: 1 },
-          { id: 'f2', type: 'text', content: 'Review by tapping', x: 125, y: 145, z: 2, color: '#ffffff', fontSize: 22, fontFamily: '"Caveat", cursive', opacity: 1 },
-          { id: 'f3', type: 'icon', iconId: 'contactless', x: 330, y: 106, z: 3, color: '#ffffff', opacity: 1 },
-          { id: 'f4', type: 'text', content: 'tap&con', x: 335, y: 220, z: 4, color: '#ffffff', fontSize: 16, fontFamily: '"Caveat", cursive', opacity: 1 }
+          { id: 'f1', type: 'text', content: 'Enjoyed your visit?', x: 95, y: 110, z: 1, color: '#ffffff', fontSize: 28, fontFamily: '"Caveat", cursive', opacity: 1 },
+          { id: 'f2', type: 'text', content: 'Review by tapping', x: 110, y: 150, z: 2, color: '#ffffff', fontSize: 24, fontFamily: '"Caveat", cursive', opacity: 1 },
+          { id: 'f3', type: 'icon', iconId: 'contactless', x: 320, y: 120, z: 3, color: '#ffffff', opacity: 1 }
         ]
       },
       back: {
-        bgColor: CANVA_COLORS[0],
+        bgColor: '#1a1a1a',
         elements: [
-          { id: 'b1', type: 'text', content: 'Your business name', x: 130, y: 110, z: 1, color: '#ffffff', fontSize: 26, fontFamily: '"Caveat", cursive', opacity: 1 }
+          { id: 'b1', type: 'text', content: 'Your business name', x: 125, y: 120, z: 1, color: '#ffffff', fontSize: 28, fontFamily: '"Caveat", cursive', opacity: 1 }
         ]
       }
     }
@@ -317,21 +475,37 @@ const TEMPLATES = [
 ];
 
 export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = {}) {
+  const [user, setUser] = useState<DbUser | null>(null);
+  const [userImages, setUserImages] = useState<ImageAsset[]>([]);
+
+  useEffect(() => {
+    const currentUser = db.getCurrentUser();
+    setUser(currentUser);
+    if (currentUser) {
+      db.getImagesByUser(currentUser.id).then(setUserImages);
+    }
+  }, []);
+
   const [orientation, setOrientation] = useState<Orientation>('horizontal');
   const [activeSide, setActiveSide] = useState<Side>('front');
 
-  const [cardData, setCardData] = useState<Record<Side, CardState>>(TEMPLATES[0].cardData);
+  const [cardData, setCardData] = useState<Record<Side, CardState>>({
+    front: { bgColor: '#ffffff', elements: [] },
+    back: { bgColor: '#ffffff', elements: [] }
+  });
 
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<ElementData | null>(null);
   const [activeTab, setActiveTab] = useState<'templates' | 'text' | 'elements' | 'image' | 'background' | 'draw'>('templates');
   const [isShapesOpen, setIsShapesOpen] = useState(false);
   const [isIconsOpen, setIsIconsOpen] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [currentPath, setCurrentPath] = useState<{x: number, y: number}[]>([]);
+  const [currentPath, setCurrentPath] = useState<{ x: number, y: number }[]>([]);
   const [drawColor, setDrawColor] = useState('#ffffff');
   const [drawThickness, setDrawThickness] = useState(4);
   const [drawTool, setDrawTool] = useState<'pen' | 'marker' | 'eraser'>('pen');
+  const [snapGuides, setSnapGuides] = useState<{ x: number | null, y: number | null }>({ x: null, y: null });
   const isEraser = drawTool === 'eraser';
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -418,7 +592,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       z: getNextZ(),
       width,
       height,
-      borderRadius,
+      borderRadius: Number(borderRadius) || 0,
       color: '#ffffff',
       opacity: 1
     };
@@ -431,11 +605,12 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
+      const dataUrl = event.target?.result as string;
       const newEl: ElementData = {
         id: Date.now().toString(),
         type: 'image',
-        imageUrl: event.target?.result as string,
+        imageUrl: dataUrl,
         x: 50,
         y: 50,
         z: getNextZ(),
@@ -445,9 +620,31 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       };
       updateCurrentSide({ elements: [...currentSideState.elements, newEl] });
       setSelectedElementId(newEl.id);
+
+      // Save to cloud if logged in
+      if (user) {
+        const savedImage = await db.saveImage(user.id, dataUrl);
+        setUserImages(prev => [savedImage, ...prev]);
+      }
     };
     reader.readAsDataURL(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSaveProject = async () => {
+    if (!user) {
+      alert('Please sign in to save designs to your account.');
+      return;
+    }
+    const name = prompt('Name your design:');
+    if (name) {
+      try {
+        await db.saveProject(user.id, name, cardData);
+        alert('Design saved successfully! You can access it in your Account.');
+      } catch (err: any) {
+        alert('Failed to save project: ' + err.message);
+      }
+    }
   };
 
   const moveZIndex = (id: string, direction: 'up' | 'down') => {
@@ -469,23 +666,68 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   };
 
   const removeElement = (id: string) => {
-    updateCurrentSide({ elements: currentSideState.elements.filter(el => el.id !== id) });
+    updateCurrentSide({
+      elements: currentSideState.elements.filter(el => el.id !== id)
+    });
     if (selectedElementId === id) setSelectedElementId(null);
   };
 
-  const clearCanvas = () => {
-    updateCurrentSide({ elements: [] });
-    setSelectedElementId(null);
+  const duplicateElement = (elId: string) => {
+    const elToCopy = currentSideState.elements.find(e => e.id === elId);
+    if (!elToCopy) return;
+    const newId = Date.now().toString();
+    const newEl = {
+      ...elToCopy,
+      id: newId,
+      x: elToCopy.x + 20,
+      y: elToCopy.y + 20,
+      z: getNextZ()
+    };
+    updateCurrentSide({
+      elements: [...currentSideState.elements, newEl]
+    });
+    setSelectedElementId(newId);
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedElementId) return;
-
       const activeTag = document.activeElement?.tagName;
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT' || (document.activeElement as HTMLElement)?.isContentEditable) {
         return;
       }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        if (selectedElementId) {
+          const el = currentSideState.elements.find(e => e.id === selectedElementId);
+          if (el) setClipboard(el);
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        if (clipboard) {
+          const newId = Date.now().toString();
+          const newEl = {
+            ...clipboard,
+            id: newId,
+            x: clipboard.x + 20,
+            y: clipboard.y + 20,
+            z: getNextZ()
+          };
+          updateCurrentSide({
+            elements: [...currentSideState.elements, newEl]
+          });
+          setSelectedElementId(newId);
+        }
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedElementId) removeElement(selectedElementId);
+        return;
+      }
+
+      if (!selectedElementId) return;
 
       const step = e.shiftKey ? 10 : 1;
       let dx = 0;
@@ -509,7 +751,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementId, currentSideState.elements]);
+  }, [selectedElementId, currentSideState.elements, clipboard]);
 
   const handleDownload = async () => {
     setSelectedElementId(null); // Clear selection borders
@@ -575,6 +817,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
               <RectangleVertical className="w-4 h-4" />
             </button>
           </div>
+          <button onClick={handleSaveProject} className="px-6 py-2 bg-[#1a1a1a] border border-white/10 text-white hover:text-white hover:border-white/30 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all flex items-center space-x-2">
+            <Save className="w-3 h-3" />
+            <span>Save</span>
+          </button>
           <button onClick={handleDownload} className="px-6 py-2 bg-white text-black text-[10px] font-bold uppercase tracking-widest rounded-md hover:bg-gray-200 transition-all flex items-center">
             Download
           </button>
@@ -583,7 +829,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden relative">
-        
+
         {/* Far-Left Navigation Sidebar */}
         <div className="w-[80px] bg-[#111] flex flex-col items-center py-6 border-r border-white/10 space-y-2 z-20 shrink-0">
           {[
@@ -594,7 +840,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             { id: 'image', icon: ImageIcon, label: 'Uploads' },
             { id: 'draw', icon: PenTool, label: 'Draw' },
           ].map(tab => (
-            <button 
+            <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex flex-col items-center justify-center w-full py-4 transition-colors relative ${activeTab === tab.id ? 'text-white bg-white/5' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
@@ -609,28 +855,28 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         {/* Secondary Context Panel (Slide out) */}
         <div className="w-[320px] bg-[#151515] border-r border-white/10 flex flex-col z-10 shrink-0 shadow-2xl">
           <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
-            
+
             {activeTab === 'draw' && (
               <div className="animate-in fade-in slide-in-from-left-4">
                 <h3 className="text-lg font-serif text-white mb-6">Drawing Tools</h3>
 
                 {/* Tools Grid */}
                 <div className="mb-6 grid grid-cols-3 gap-2">
-                  <button 
+                  <button
                     onClick={() => setDrawTool('pen')}
                     className={`flex flex-col items-center justify-center p-3 border rounded-xl transition-all ${drawTool === 'pen' ? 'bg-white/10 border-white text-white' : 'bg-[#1a1a1a] border-white/10 text-gray-400 hover:text-white hover:bg-white/5'}`}
                   >
                     <PenTool className="w-5 h-5 mb-2" />
                     <span className="text-[9px] font-bold uppercase tracking-widest">Pen</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => setDrawTool('marker')}
                     className={`flex flex-col items-center justify-center p-3 border rounded-xl transition-all ${drawTool === 'marker' ? 'bg-white/10 border-white text-white' : 'bg-[#1a1a1a] border-white/10 text-gray-400 hover:text-white hover:bg-white/5'}`}
                   >
                     <Highlighter className="w-5 h-5 mb-2" />
                     <span className="text-[9px] font-bold uppercase tracking-widest">Marker</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => setDrawTool('eraser')}
                     className={`flex flex-col items-center justify-center p-3 border rounded-xl transition-all ${drawTool === 'eraser' ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-[#1a1a1a] border-white/10 text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}
                   >
@@ -645,13 +891,13 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                   <label className="block text-[10px] uppercase tracking-widest font-bold mb-2 text-gray-500 flex justify-between">
                     <span>Thickness</span><span>{drawThickness}px</span>
                   </label>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="40" 
-                    value={drawThickness} 
-                    onChange={(e) => setDrawThickness(parseInt(e.target.value))} 
-                    className="w-full accent-white" 
+                  <input
+                    type="range"
+                    min="1"
+                    max="40"
+                    value={drawThickness}
+                    onChange={(e) => setDrawThickness(parseInt(e.target.value))}
+                    className="w-full accent-white"
                     disabled={isEraser}
                   />
                 </div>
@@ -679,10 +925,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                         key={c}
                         onClick={() => !isEraser && setDrawColor(c)}
                         className="aspect-square rounded-full border-2 transition-all"
-                        style={{ 
-                          backgroundColor: c, 
-                          borderColor: drawColor === c ? '#fff' : 'transparent', 
-                          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)' 
+                        style={{
+                          backgroundColor: c,
+                          borderColor: drawColor === c ? '#fff' : 'transparent',
+                          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)'
                         }}
                         title={c}
                         disabled={isEraser}
@@ -706,7 +952,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                       }}
                       className="w-full flex flex-col items-center p-4 bg-[#1a1a1a] hover:bg-white/10 border border-white/5 rounded-xl transition-all text-left"
                     >
-                      <div 
+                      <div
                         className="w-full h-20 rounded-lg mb-3 flex items-center justify-center border border-white/10"
                         style={{ backgroundColor: template.cardData.front.bgColor }}
                       >
@@ -722,7 +968,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             {activeTab === 'background' && (
               <div className="animate-in fade-in slide-in-from-left-4">
                 <h3 className="text-lg font-serif text-white mb-6">Background Color</h3>
-                
+
                 <div className="mb-6">
                   <h4 className="text-sm font-bold text-white mb-4">Document colors</h4>
                   <div className="flex items-center">
@@ -748,20 +994,20 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                         key={c}
                         onClick={() => updateCurrentSide({ bgColor: c })}
                         className="aspect-square rounded-full border-2 transition-all"
-                        style={{ 
-                          backgroundColor: c, 
-                          borderColor: currentSideState.bgColor === c ? '#fff' : 'transparent', 
-                          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)' 
+                        style={{
+                          backgroundColor: c,
+                          borderColor: currentSideState.bgColor === c ? '#fff' : 'transparent',
+                          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)'
                         }}
                         title={c}
                       />
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="pt-8 mt-8 border-t border-white/10">
                   <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-widest">Global Actions</h3>
-                  <button onClick={clearCanvas} className="flex items-center text-red-400 hover:text-red-300 transition-colors text-[10px] uppercase tracking-widest font-bold px-4 py-3 bg-red-400/10 hover:bg-red-400/20 rounded-lg w-full justify-center">
+                  <button onClick={() => updateCurrentSide({ elements: [] })} className="flex items-center text-red-400 hover:text-red-300 transition-colors text-[10px] uppercase tracking-widest font-bold px-4 py-3 bg-red-400/10 hover:bg-red-400/20 rounded-lg w-full justify-center">
                     <Trash2 className="w-4 h-4 mr-2" /> Start from Scratch
                   </button>
                 </div>
@@ -781,7 +1027,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             {activeTab === 'elements' && (
               <div className="animate-in fade-in slide-in-from-left-4">
                 <h3 className="text-lg font-serif text-white mb-6">Elements</h3>
-                
+
                 <button onClick={() => setIsShapesOpen(!isShapesOpen)} className="w-full flex items-center justify-between text-sm font-bold text-gray-400 mb-4 uppercase tracking-widest hover:text-white transition-colors">
                   <span>Shapes</span>
                   {isShapesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -833,11 +1079,45 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             {activeTab === 'image' && (
               <div className="animate-in fade-in slide-in-from-left-4">
                 <h3 className="text-lg font-serif text-white mb-6">Uploads</h3>
-                <button onClick={() => fileInputRef.current?.click()} className="w-full flex flex-col items-center justify-center py-10 border-2 border-dashed border-white/20 hover:border-white/40 bg-white/5 rounded-xl transition-all text-gray-400 hover:text-white group">
+                <button onClick={() => fileInputRef.current?.click()} className="w-full flex flex-col items-center justify-center py-10 border-2 border-dashed border-white/20 hover:border-white/40 bg-white/5 rounded-xl transition-all text-gray-400 hover:text-white group mb-6">
                   <ImageIcon className="w-8 h-8 mb-3" />
                   <span className="text-xs font-bold uppercase tracking-widest">Upload Image</span>
                   <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
                 </button>
+
+                {user && userImages.length > 0 && (
+                  <div className="space-y-4">
+                    <h4 className="text-xs uppercase tracking-widest font-bold text-gray-500">Your Library</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {userImages.map(img => (
+                        <button
+                          key={img.id}
+                          onClick={() => {
+                            const newEl: ElementData = {
+                              id: Date.now().toString(),
+                              type: 'image',
+                              imageUrl: img.url,
+                              x: 50,
+                              y: 50,
+                              z: getNextZ(),
+                              width: 100,
+                              color: '#ffffff',
+                              opacity: 1
+                            };
+                            updateCurrentSide({ elements: [...currentSideState.elements, newEl] });
+                            setSelectedElementId(newEl.id);
+                          }}
+                          className="aspect-square bg-[#111] border border-white/10 hover:border-white/30 rounded-lg overflow-hidden transition-all p-2 flex items-center justify-center"
+                        >
+                          <img src={img.url} alt="Uploaded" className="max-w-full max-h-full object-contain pointer-events-none" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!user && (
+                  <p className="text-[10px] text-center text-gray-500 mt-4">Sign in to save uploads to your account library.</p>
+                )}
               </div>
             )}
 
@@ -846,27 +1126,20 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
         {/* Central Canvas Area */}
         <div className="flex-1 bg-[#0a0a0a] relative flex flex-col items-center justify-center overflow-hidden" onClick={() => setSelectedElementId(null)}>
-          
+
           {/* Top Context Toolbar (Canva-style) */}
           {selectedElementId && selectedElement && (
-            <div 
+            <div
               className="absolute top-6 left-1/2 -translate-x-1/2 z-50 bg-[#1a1a1a] border border-white/20 rounded-xl px-4 py-2 flex items-center space-x-4 shadow-2xl animate-in fade-in slide-in-from-top-4"
               onClick={(e) => e.stopPropagation()}
             >
-              
+
               {selectedElement.type === 'text' && (
                 <>
-                  <select
+                  <FontPicker
                     value={selectedElement.fontFamily || 'var(--font-serif)'}
-                    onChange={(e) => updateElement(selectedElement.id, { fontFamily: e.target.value })}
-                    className="bg-transparent text-white text-xs border-r border-white/20 pr-4 focus:outline-none"
-                  >
-                    <option className="bg-[#1a1a1a] text-white" value="var(--font-serif)">Default Serif</option>
-                    <option className="bg-[#1a1a1a] text-white" value="var(--font-sans)">Default Sans</option>
-                    <option className="bg-[#1a1a1a] text-white" value="'Playfair Display', serif">Playfair</option>
-                    <option className="bg-[#1a1a1a] text-white" value="'Montserrat', sans-serif">Montserrat</option>
-                    <option className="bg-[#1a1a1a] text-white" value="'Caveat', cursive">Caveat</option>
-                  </select>
+                    onChange={(val) => updateElement(selectedElement.id, { fontFamily: val })}
+                  />
                   <div className="flex items-center space-x-2 border-r border-white/20 pr-4">
                     <input
                       type="number"
@@ -894,12 +1167,13 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
               )}
 
               <div className="flex items-center space-x-2 border-r border-white/20 pr-4">
-                 <button onClick={() => moveZIndex(selectedElement.id, 'up')} className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-white/10" title="Bring Forward"><ArrowUp className="w-4 h-4" /></button>
-                 <button onClick={() => moveZIndex(selectedElement.id, 'down')} className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-white/10" title="Send Backward"><ArrowDown className="w-4 h-4" /></button>
+                <button onClick={() => moveZIndex(selectedElement.id, 'up')} className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-white/10" title="Bring Forward"><ArrowUp className="w-4 h-4" /></button>
+                <button onClick={() => moveZIndex(selectedElement.id, 'down')} className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-white/10" title="Send Backward"><ArrowDown className="w-4 h-4" /></button>
               </div>
 
-              <div className="flex items-center pl-2">
-                 <button onClick={() => removeElement(selectedElement.id)} className="p-1.5 text-red-400 hover:text-red-300 rounded hover:bg-white/10" title="Delete"><Trash2 className="w-4 h-4" /></button>
+              <div className="flex items-center pl-2 space-x-2">
+                <button onClick={() => duplicateElement(selectedElement.id)} className="p-1.5 text-gray-400 hover:text-white rounded hover:bg-white/10" title="Duplicate"><Copy className="w-4 h-4" /></button>
+                <button onClick={() => removeElement(selectedElement.id)} className="p-1.5 text-red-400 hover:text-red-300 rounded hover:bg-white/10" title="Delete"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           )}
@@ -908,16 +1182,13 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           {selectedElementId && selectedElement && (
             <div className="absolute right-6 top-6 bottom-6 w-64 bg-[#111] border border-white/10 rounded-2xl p-6 flex flex-col z-40 animate-in slide-in-from-right-8 shadow-2xl" onClick={e => e.stopPropagation()}>
               <h3 className="text-sm uppercase tracking-widest font-bold text-white mb-6">Settings</h3>
-              
+
               <div className="space-y-6 overflow-y-auto custom-scrollbar flex-1 pr-2">
                 {selectedElement.type === 'text' && (
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-2 text-gray-500">Edit Text</label>
-                    <textarea
-                      value={selectedElement.content}
-                      onChange={(e) => updateElement(selectedElement.id, { content: e.target.value })}
-                      className="w-full bg-black/50 border border-white/20 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-white min-h-[100px]"
-                    />
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => updateElement(selectedElement.id, { textTransform: 'none' })} className={`p-2 rounded border text-xs transition-all ${(!selectedElement.textTransform || selectedElement.textTransform === 'none') ? 'bg-white/20 border-white text-white' : 'border-white/10 text-gray-500 hover:text-white'}`}>Aa</button>
+                    <button onClick={() => updateElement(selectedElement.id, { textTransform: 'lowercase' })} className={`p-2 rounded border text-xs transition-all ${selectedElement.textTransform === 'lowercase' ? 'bg-white/20 border-white text-white' : 'border-white/10 text-gray-500 hover:text-white'}`}>aa</button>
+                    <button onClick={() => updateElement(selectedElement.id, { textTransform: 'uppercase' })} className={`p-2 rounded border text-xs transition-all ${selectedElement.textTransform === 'uppercase' ? 'bg-white/20 border-white text-white' : 'border-white/10 text-gray-500 hover:text-white'}`}>AA</button>
                   </div>
                 )}
 
@@ -927,7 +1198,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                     <div className="flex flex-wrap gap-2">
                       {ICONS.slice(0, 12).map(({ id, component: IconComponent }) => (
                         <button key={id} onClick={() => updateElement(selectedElement.id, { iconId: id })} className={`p-2 rounded-lg transition-all ${selectedElement.iconId === id ? 'bg-white/20 text-white' : 'bg-black/50 text-gray-500 hover:text-white'}`}>
-                           <IconComponent className="w-4 h-4" />
+                          <IconComponent className="w-4 h-4" />
                         </button>
                       ))}
                     </div>
@@ -984,7 +1255,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           )}
 
           {/* Mini Preview of Inactive Side */}
-          <div 
+          <div
             className={`absolute top-6 transition-all duration-300 z-30 group cursor-pointer border border-white/10 hover:border-white/30 rounded-xl overflow-hidden shadow-2xl bg-[#111] ${selectedElementId ? 'right-72' : 'right-6'}`}
             onClick={(e) => { e.stopPropagation(); setActiveSide(activeSide === 'front' ? 'back' : 'front'); }}
             style={{
@@ -995,10 +1266,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
               <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
               <span className="text-white text-[9px] font-bold uppercase tracking-widest bg-black/80 px-2 py-1 rounded relative z-10 whitespace-nowrap text-center leading-tight">
-                Switch to<br/>{activeSide === 'front' ? 'Back' : 'Front'}
+                Switch to<br />{activeSide === 'front' ? 'Back' : 'Front'}
               </span>
             </div>
-            <div 
+            <div
               style={{
                 width: orientation === 'horizontal' ? 428 : 270,
                 height: orientation === 'horizontal' ? 270 : 428,
@@ -1013,9 +1284,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                   key={`mini-${el.id}`}
                   el={el}
                   isSelected={false}
-                  onSelect={() => {}}
-                  onRemove={() => {}}
-                  onDrag={() => {}}
+                  onSelect={() => { }}
+                  onRemove={() => { }}
+                  onDrag={() => { }}
                   isDrawMode={false}
                   isEraser={false}
                 />
@@ -1054,16 +1325,29 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                       containerRef={containerRef}
                       onSelect={setSelectedElementId}
                       onUpdatePosition={(id: string, x: number, y: number) => updateElement(id, { x, y })}
+                      onUpdateElement={(id: string, updates: Partial<ElementData>) => updateElement(id, updates)}
                       IconComp={IconComp}
                       isDrawMode={activeTab === 'draw'}
                       isEraser={isEraser}
                       onRemove={(id: string) => updateCurrentSide({ elements: currentSideState.elements.filter(e => e.id !== id) })}
+                      setSnapGuides={setSnapGuides}
+                      orientation={orientation}
+                      zoom={zoom}
                     />
                   );
                 })}
+
+                {/* Snap Guides */}
+                {snapGuides.x !== null && (
+                  <div className="absolute top-0 bottom-0 w-[1px] bg-pink-500 z-[60] pointer-events-none" style={{ left: snapGuides.x }}></div>
+                )}
+                {snapGuides.y !== null && (
+                  <div className="absolute left-0 right-0 h-[1px] bg-pink-500 z-[60] pointer-events-none" style={{ top: snapGuides.y }}></div>
+                )}
+
                 {/* Drawing Overlay */}
                 {activeTab === 'draw' && !isEraser && (
-                  <div 
+                  <div
                     className="absolute inset-0 z-[100] touch-none cursor-crosshair"
                     onPointerDown={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -1124,14 +1408,14 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                   >
                     {isDrawing && currentPath.length > 0 && (
                       <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
-                        <path 
-                          d={`M ${currentPath.map(p => `${p.x} ${p.y}`).join(' L ')}`} 
-                          stroke={drawColor} 
-                          strokeWidth={drawThickness} 
+                        <path
+                          d={`M ${currentPath.map(p => `${p.x} ${p.y}`).join(' L ')}`}
+                          stroke={drawColor}
+                          strokeWidth={drawThickness}
                           strokeOpacity={drawTool === 'marker' ? 0.4 : 1}
-                          fill="none" 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
+                          fill="none"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                         />
                       </svg>
                     )}
@@ -1144,11 +1428,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           {/* Zoom UI Control */}
           <div className="absolute bottom-6 right-6 flex items-center bg-[#151515] border border-white/10 px-4 py-2 rounded-full shadow-2xl z-50">
             <div className="w-1.5 h-1.5 rounded-full bg-gray-500 mr-3"></div>
-            <input 
-              type="range" 
-              min="10" 
-              max="200" 
-              value={zoom} 
+            <input
+              type="range"
+              min="10"
+              max="200"
+              value={zoom}
               onChange={(e) => setZoom(parseInt(e.target.value))}
               className="w-32 accent-white h-1.5 bg-gray-600 rounded-full appearance-none cursor-pointer"
             />
