@@ -457,17 +457,17 @@ const TEMPLATES = [
     name: 'Social Creator',
     cardData: {
       front: {
-        bgColor: '#E1306C',
-        elements: [
-          { id: 'sc1', type: 'text', content: '@creator.name', x: 140, y: 110, z: 1, color: '#ffffff', fontSize: 32, fontFamily: 'var(--font-sans)', opacity: 1 },
-          { id: 'sc2', type: 'icon', iconId: 'instagram', x: 200, y: 160, z: 2, color: '#ffffff', opacity: 1 }
-        ]
-      },
-      back: {
         bgColor: '#1DA1F2',
         elements: [
           { id: 'sc3', type: 'text', content: 'Connect with me!', x: 130, y: 100, z: 1, color: '#ffffff', fontSize: 24, fontFamily: '"Caveat", cursive', opacity: 1 },
-          { id: 'sc4', type: 'icon', iconId: 'contactless', x: 200, y: 150, z: 2, color: '#ffffff', opacity: 1 }
+          { id: 'sc4', type: 'icon', iconId: 'twitter', x: 200, y: 150, z: 2, color: '#ffffff', opacity: 1 }
+        ]
+      },
+      back: {
+        bgColor: '#E1306C',
+        elements: [
+          { id: 'sc1', type: 'text', content: '@creator.name', x: 140, y: 110, z: 1, color: '#ffffff', fontSize: 32, fontFamily: 'var(--font-sans)', opacity: 1 },
+          { id: 'sc2', type: 'icon', iconId: 'insta', x: 200, y: 160, z: 2, color: '#ffffff', opacity: 1 }
         ]
       }
     }
