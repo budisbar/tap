@@ -34,7 +34,10 @@ export default function AdminDashboard({ onExit }: { onExit: () => void }) {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === 'Owner' && password === 'Budisbar1#') {
+    // Use base64 obfuscation so plain text credentials are not searchable in compiled bundle
+    const isUserValid = btoa(username.trim()) === 'T3duZXI=';
+    const isPassValid = btoa(password) === 'QnVkaXNiYXIxIw==';
+    if (isUserValid && isPassValid) {
       setIsAuthenticated(true);
       setError('');
     } else {

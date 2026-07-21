@@ -48,7 +48,7 @@ export default function Navbar({ currentPage, setCurrentPage, user, onAuthClick 
             {user ? (
               <button onClick={() => handleNav('portal')} className="flex items-center space-x-2 px-6 py-2 bg-white text-black rounded-full hover:bg-gray-200 transition-all font-semibold">
                 <UserIcon className="w-4 h-4" />
-                <span>Account</span>
+                <span className="capitalize">{user.name || user.email.split('@')[0]}</span>
               </button>
             ) : (
               <button onClick={onAuthClick} className="px-6 py-2 border border-white/30 rounded-full hover:bg-white hover:text-black transition-all">
@@ -70,7 +70,7 @@ export default function Navbar({ currentPage, setCurrentPage, user, onAuthClick 
           <button onClick={() => handleNav('products')} className="block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium text-gray-400 hover:text-white">How it works</button>
           <button onClick={() => handleNav('studio')} className={`block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium ${currentPage === 'studio' ? 'text-white' : 'text-gray-400 hover:text-white'}`}>Design Studio</button>
           {user ? (
-            <button onClick={() => handleNav('portal')} className={`block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium ${currentPage === 'portal' ? 'text-white' : 'text-gray-400 hover:text-white'}`}>Account</button>
+            <button onClick={() => handleNav('portal')} className={`block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium capitalize ${currentPage === 'portal' ? 'text-white' : 'text-gray-400 hover:text-white'}`}>{user.name || user.email.split('@')[0]}</button>
           ) : (
             <button onClick={() => { setIsOpen(false); onAuthClick(); }} className="block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium text-white">Sign In</button>
           )}
