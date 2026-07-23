@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const steps = [
   {
@@ -20,11 +21,12 @@ const steps = [
   }
 ];
 
-export default function Products({ onUnlockAdmin }: { onUnlockAdmin?: () => void }) {
+export default function Products() {
+  const navigate = useNavigate();
   const [clickCount, setClickCount] = useState(0);
 
   return (
-    <section id="products" className="py-24 relative bg-transparent border-t border-white/5">
+    <section id="products" className="py-24 relative bg-transparent border-y border-white/20">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="text-center max-w-3xl mx-auto mb-20">
           <h2 className="text-4xl md:text-5xl font-serif font-light text-white mb-6">How it Works</h2>
@@ -54,7 +56,7 @@ export default function Products({ onUnlockAdmin }: { onUnlockAdmin?: () => void
                         onClick={() => {
                           if (index === 2) {
                             if (clickCount + 1 >= 4) {
-                              onUnlockAdmin?.();
+                              navigate('/admin');
                               setClickCount(0);
                             } else {
                               setClickCount(prev => prev + 1);

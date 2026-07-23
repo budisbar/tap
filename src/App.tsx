@@ -1,76 +1,95 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import WhyReviews from './components/WhyReviews';
 import Products from './components/Products';
-import CardCustomizer from './components/CardCustomizer';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
-import AdminDashboard from './components/AdminDashboard';
-import ClientPortal from './components/ClientPortal';
+import CustomQuote from './components/CustomQuote';
+import FAQ from './components/FAQ';
 import AuthModal from './components/AuthModal';
+import EcoFriendly from './components/EcoFriendly';
 import { db, User } from './lib/mockDb';
 
-export default function App() {
-  const [currentPage, setCurrentPage] = useState<'home' | 'studio' | 'admin' | 'portal'>('home');
+const CardCustomizer = lazy(() => import('./components/CardCustomizer'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const ClientPortal = lazy(() => import('./components/ClientPortal'));
+
+// Loader component for Suspense
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[#050505]">
+    <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+  </div>
+);
+
+function AppContent() {
   const [user, setUser] = useState<User | null>(() => db.getCurrentUser());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  
+  const location = useLocation();
 
+  const isHomePage = location.pathname === '/';
+  const isAdmin = location.pathname === '/admin';
 
-  const goToContact = () => {
-    setCurrentPage('home');
-    setTimeout(() => {
-      document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
+  // Handle scrolling when on home page
+  useEffect(() => {
+    if (isHomePage && location.hash) {
+      setTimeout(() => {
+        const id = location.hash.replace('#', '');
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else if (!location.hash) {
+      window.scrollTo(0, 0);
+    }
+  }, [location, isHomePage]);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-200 selection:bg-white/20 selection:text-white" style={{ backgroundImage: 'radial-gradient(circle at top right, #1a1a1a 0%, #050505 60%)', backgroundAttachment: 'fixed' }}>
+    <div className="min-h-screen bg-[#050505] text-gray-200 selection:bg-white/20 selection:text-white relative">
+      <div className="fixed inset-0 pointer-events-none -z-10 transform-gpu" style={{ backgroundImage: 'radial-gradient(circle at top right, #1a1a1a 0%, #050505 60%)' }} />
 
       {/* The Main Content */}
-      <div className="relative z-10">
-        <div className="w-full h-full">
-          {currentPage !== 'admin' && <Navbar currentPage={currentPage as any} setCurrentPage={setCurrentPage} user={user} onAuthClick={() => setIsAuthModalOpen(true)} />}
-          <main>
-            {currentPage === 'home' ? (
-              <>
-                <Hero onDesignCard={() => { setCurrentPage('studio'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
-                <Products onUnlockAdmin={() => { setCurrentPage('admin'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
-                <WhyReviews />
-                <Contact />
-              </>
-            ) : currentPage === 'studio' ? (
-              <div className="pt-24 pb-12 min-h-screen">
-                <CardCustomizer onBookMeeting={goToContact} />
-              </div>
-            ) : currentPage === 'portal' ? (
-              <ClientPortal 
-                user={user!} 
-                onLogout={() => { setUser(null); setCurrentPage('home'); }}
-                onOpenProject={(projectId) => {
-                  // Pass project ID down to CardCustomizer somehow? Or just route to studio for now
-                  setCurrentPage('studio');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNewProject={() => {
-                  setCurrentPage('studio');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : (
-              <div className="min-h-screen">
-                <AdminDashboard onExit={() => { setCurrentPage('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
-              </div>
-            )}
-          </main>
-          {currentPage !== 'admin' && <Footer onHomeClick={() => { setCurrentPage('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-        </div>
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {!isAdmin && <Navbar user={user} onAuthClick={() => setIsAuthModalOpen(true)} />}
+        
+        <main className="flex-grow">
+            <Routes>
+              <Route path="/" element={
+                <>
+                  <Hero />
+                  <Products />
+                  <WhyReviews />
+                  <EcoFriendly />
+                  <CustomQuote />
+                  <FAQ />
+                  <Contact />
+                </>
+              } />
+              <Route path="/studio" element={
+                <Suspense fallback={<PageLoader />}>
+                  <div className="pt-24 pb-12 min-h-screen">
+                    <CardCustomizer />
+                  </div>
+                </Suspense>
+              } />
+              <Route path="/portal" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ClientPortal 
+                    user={user!} 
+                    onLogout={() => setUser(null)}
+                  />
+                </Suspense>
+              } />
+              <Route path="/admin" element={
+                <Suspense fallback={<PageLoader />}>
+                  <div className="min-h-screen">
+                    <AdminDashboard />
+                  </div>
+                </Suspense>
+              } />
+            </Routes>
+        </main>
+
+        {!isAdmin && <Footer />}
       </div>
       
       <AuthModal 
@@ -79,5 +98,13 @@ export default function App() {
         onSuccess={() => setUser(db.getCurrentUser())} 
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Calendar, MessageSquare, Building2, User, Mail } from 'lucide-react';
+import MagneticButton from './MagneticButton';
+import { Calendar, MessageSquare, Building2, User, Mail, Loader2 } from 'lucide-react';
 
 export default function Contact() {
   const [name, setName] = useState('');
@@ -48,8 +49,17 @@ export default function Contact() {
   };
 
   return (
-    <section id="contact" className="py-24 bg-white text-black">
-      <div className="max-w-7xl mx-auto px-6 lg:px-12">
+    <section id="contact" className="py-24 bg-white text-black relative overflow-hidden">
+      {/* Background Logo Watermark */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-[600px] aspect-square pointer-events-none select-none z-0 opacity-10 flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="55 25 103 110" className="w-full h-full fill-black">
+          <path d="M 110,30 A 50,50 0 0,0 110,130 Z" />
+          <path d="M 136.4,35 A 55,55 0 0,0 136.4,125 Z" />
+          <path d="M 152.7,45 A 50,50 0 0,0 152.7,115 Z" />
+        </svg>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 lg:px-12 relative z-10">
         <div className="grid md:grid-cols-2 gap-16 items-center">
           <div>
             <motion.div
@@ -100,45 +110,54 @@ export default function Contact() {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="border-l md:border-black/10 md:pl-16 flex flex-col justify-center"
+            className="border-l md:border-black/10 md:pl-16 flex flex-col justify-center relative"
           >
-            <h3 className="text-[10px] uppercase tracking-widest font-bold mb-8">Send us an Email</h3>
-            <form className="space-y-8" onSubmit={handleSubmit}>
+            <h3 className="text-[10px] uppercase tracking-widest font-bold mb-8 relative z-10">Send us an Email</h3>
+            <form className="space-y-8 relative z-10" onSubmit={handleSubmit}>
               <div>
-                <label htmlFor="name" className="block text-[10px] uppercase tracking-widest font-bold mb-1">Full Name</label>
+                <label htmlFor="name" className="block text-[10px] uppercase tracking-widest font-bold mb-1 text-black/80">Full Name</label>
                 <div className="relative">
-                  <input type="text" id="name" value={name} onChange={e => setName(e.target.value)} required className="block w-full border-b border-black/20 pb-2 text-xl font-light focus:outline-none focus:border-black bg-transparent transition-colors" placeholder="John Doe" />
+                  <input type="text" id="name" value={name} onChange={e => setName(e.target.value)} required className="block w-full border-b border-black/20 pb-2 text-xl font-light focus:outline-none focus:border-black bg-transparent transition-colors placeholder:text-black/50" placeholder="John Doe" />
                 </div>
               </div>
               
               <div>
-                <label htmlFor="email" className="block text-[10px] uppercase tracking-widest font-bold mb-1">Email Address</label>
+                <label htmlFor="email" className="block text-[10px] uppercase tracking-widest font-bold mb-1 text-black/80">Email Address</label>
                 <div className="relative">
-                  <input type="email" id="email" value={email} onChange={e => setEmail(e.target.value)} required className="block w-full border-b border-black/20 pb-2 text-xl font-light focus:outline-none focus:border-black bg-transparent transition-colors" placeholder="john@company.com" />
+                  <input type="email" id="email" value={email} onChange={e => setEmail(e.target.value)} required className="block w-full border-b border-black/20 pb-2 text-xl font-light focus:outline-none focus:border-black bg-transparent transition-colors placeholder:text-black/50" placeholder="john@company.com" />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="message" className="block text-[10px] uppercase tracking-widest font-bold mb-1">Message</label>
+                <label htmlFor="message" className="block text-[10px] uppercase tracking-widest font-bold mb-1 text-black/80">Message</label>
                 <div className="relative">
-                  <textarea id="message" value={message} onChange={e => setMessage(e.target.value)} required rows={3} className="block w-full border-b border-black/20 pb-2 text-xl font-light focus:outline-none focus:border-black bg-transparent transition-colors resize-none" placeholder="How can we help you?"></textarea>
+                  <textarea id="message" value={message} onChange={e => setMessage(e.target.value)} required rows={3} className="block w-full border-b border-black/20 pb-2 text-xl font-light focus:outline-none focus:border-black bg-transparent transition-colors resize-none placeholder:text-black/50" placeholder="How can we help you?"></textarea>
                 </div>
               </div>
 
               {submitStatus === 'success' && (
-                <div className="bg-green-50 text-green-800 p-4 rounded-md text-sm">
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-green-50 border border-green-200 text-green-800 px-5 py-4 rounded-lg text-sm flex items-center shadow-sm">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-3 animate-pulse"></div>
                   Your message has been sent successfully. We'll be in touch soon!
-                </div>
+                </motion.div>
               )}
               {submitStatus === 'error' && (
-                <div className="bg-red-50 text-red-800 p-4 rounded-md text-sm">
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-50 border border-red-200 text-red-800 px-5 py-4 rounded-lg text-sm flex items-center shadow-sm">
+                  <div className="w-2 h-2 bg-red-500 rounded-full mr-3 animate-pulse"></div>
                   There was an error sending your message. Please try again.
-                </div>
+                </motion.div>
               )}
 
-              <button disabled={isSubmitting} type="submit" className={`w-full bg-black text-white px-10 py-5 font-bold uppercase tracking-widest transition-all mt-8 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:invert'}`}>
-                {isSubmitting ? 'Sending...' : 'Send Email'}
-              </button>
+              <MagneticButton className="w-full mt-8">
+                <button disabled={isSubmitting} type="submit" className={`w-full bg-black text-white px-10 py-5 font-bold uppercase tracking-widest transition-all flex items-center justify-center ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-800'}`}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                      Sending...
+                    </>
+                  ) : 'Send Email'}
+                </button>
+              </MagneticButton>
             </form>
           </motion.div>
         </div>
