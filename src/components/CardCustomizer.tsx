@@ -4,7 +4,7 @@ import { toPng } from 'html-to-image';
 import {
   SmartphoneNfc, Star, Utensils, Wifi, Type, Trash2, RectangleHorizontal, RectangleVertical, Image as ImageIcon, Square, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
   Waves, Coffee, ShoppingBag, Heart, User, MapPin, Phone, Mail, Globe, Instagram, Facebook, Twitter, Linkedin, Github, MessageCircle, Music, Video, Camera, Anchor, Zap, Shield, Sun, Moon, Cloud, Droplet, Hexagon, Triangle, Circle, Shapes,
-  AlignLeft, AlignCenter, AlignRight, Bold, Italic, LayoutTemplate, Palette, PenTool, Eraser, Highlighter,
+  AlignLeft, AlignCenter, AlignRight, Bold, Italic, LayoutTemplate, Palette, PenTool, Eraser, Highlighter, Layers,
   Youtube, Twitch, Dribbble, Figma, Slack, Check, X, Plus, Minus, ThumbsUp, ThumbsDown, Bookmark, Link, Share2, Search, Bell, Settings, Home, Calendar, Clock, Smile, Eye, EyeOff, Menu, Filter, Copy, Clipboard, Download, Upload,
   Briefcase, CreditCard, Tag, Truck, Gift, Key, Monitor, Laptop, Smartphone, Tablet, Watch, Headphones, Speaker, Battery, Database, HardDrive, Printer, Server, Mouse,
   Plane, Car, Bus, Train, Compass, Navigation, Umbrella, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, Unlock, Save
@@ -474,6 +474,90 @@ const TEMPLATES = [
   }
 ];
 
+export interface CardMaterial {
+  id: string;
+  category: 'metal' | 'plastic' | 'wood';
+  name: string;
+  description: string;
+  bgColor: string;
+  previewBg: string;
+  sheenOverlay?: string;
+  badgeColor: string;
+  shadowStyle?: string;
+}
+
+export const MATERIALS: CardMaterial[] = [
+  // METAL
+  {
+    id: 'metal-silver',
+    category: 'metal',
+    name: 'Brushed Stainless Steel',
+    description: 'Heavyweight stainless steel with realistic brushed metallic grain.',
+    bgColor: '#cbd5e1',
+    previewBg: `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380"><defs><filter id="steel-brush" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.5 0.004" numOctaves="4" result="noise"/><feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 0.3 0"/></filter><linearGradient id="metal-shine" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f8fafc"/><stop offset="25%" stop-color="#cbd5e1"/><stop offset="50%" stop-color="#ffffff"/><stop offset="75%" stop-color="#94a3b8"/><stop offset="100%" stop-color="#e2e8f0"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#metal-shine)"/><rect width="100%" height="100%" filter="url(#steel-brush)" opacity="0.75"/></svg>`)}") center/cover no-repeat`,
+    sheenOverlay: 'linear-gradient(115deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 45%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 55%)',
+    badgeColor: 'bg-slate-700/40 text-slate-200 border-slate-600',
+    shadowStyle: '0 30px 60px -15px rgba(0, 0, 0, 0.9), inset 0 1.5px 2px rgba(255, 255, 255, 0.6), inset 0 -1.5px 2px rgba(0, 0, 0, 0.6)'
+  },
+  // WOOD
+  {
+    id: 'wood-walnut',
+    category: 'wood',
+    name: 'Dark Walnut Wood',
+    description: '100% natural organic dark walnut wood with deep horizontal fiber grain streaks.',
+    bgColor: '#52321c',
+    previewBg: `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380"><defs><filter id="walnut-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.005 0.06" numOctaves="5" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="18" xChannelSelector="R" yChannelSelector="G"/></filter><linearGradient id="walnut-grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#6a3d24"/><stop offset="35%" stop-color="#512c17"/><stop offset="70%" stop-color="#5c341e"/><stop offset="100%" stop-color="#422210"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#walnut-grad)"/><g filter="url(#walnut-grain)" opacity="0.75"><line x1="0" y1="20" x2="600" y2="20" stroke="#361a0b" stroke-width="12"/><line x1="0" y1="60" x2="600" y2="60" stroke="#251005" stroke-width="8"/><line x1="0" y1="110" x2="600" y2="110" stroke="#452311" stroke-width="16"/><line x1="0" y1="165" x2="600" y2="165" stroke="#1d0a03" stroke-width="10"/><line x1="0" y1="220" x2="600" y2="220" stroke="#3b1d0c" stroke-width="18"/><line x1="0" y1="280" x2="600" y2="280" stroke="#281106" stroke-width="14"/><line x1="0" y1="340" x2="600" y2="340" stroke="#482613" stroke-width="11"/></g></svg>`)}") center/cover no-repeat`,
+    sheenOverlay: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.2) 100%)',
+    badgeColor: 'bg-amber-900/40 text-amber-200 border-amber-800',
+    shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.8), inset 0 1.5px 2px rgba(255, 255, 255, 0.35)'
+  },
+  {
+    id: 'wood-cherry',
+    category: 'wood',
+    name: 'Cherry Sapele Wood',
+    description: 'Warm mahogany-cherry wood finish with rich warm reddish tones and organic grain waves.',
+    bgColor: '#c17252',
+    previewBg: `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380"><defs><filter id="cherry-wave" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.003 0.03" numOctaves="4" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="28" xChannelSelector="R" yChannelSelector="G"/></filter><linearGradient id="cherry-grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ca7857"/><stop offset="40%" stop-color="#b46342"/><stop offset="75%" stop-color="#c57453"/><stop offset="100%" stop-color="#9e4e30"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#cherry-grad)"/><g filter="url(#cherry-wave)" opacity="0.65"><rect y="10" width="600" height="40" fill="#9e4b2d"/><rect y="75" width="600" height="55" fill="#d38260"/><rect y="150" width="600" height="65" fill="#8d3c20"/><rect y="235" width="600" height="50" fill="#c47250"/><rect y="310" width="600" height="55" fill="#833319"/></g></svg>`)}") center/cover no-repeat`,
+    sheenOverlay: 'radial-gradient(ellipse at 40% 50%, rgba(255,210,185,0.2) 0%, transparent 70%)',
+    badgeColor: 'bg-rose-900/40 text-rose-200 border-rose-800',
+    shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.78), inset 0 1.5px 2px rgba(255, 255, 255, 0.35)'
+  },
+  {
+    id: 'wood-bamboo',
+    category: 'wood',
+    name: 'Natural Bamboo Wood',
+    description: 'Eco-friendly light bamboo wood with fine linear horizontal wood grain.',
+    bgColor: '#ebd4b6',
+    previewBg: `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380"><defs><filter id="bamboo-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.0015 0.16" numOctaves="3" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G"/></filter><linearGradient id="bamboo-grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#eed8ba"/><stop offset="35%" stop-color="#dfc4a0"/><stop offset="70%" stop-color="#ebd2b3"/><stop offset="100%" stop-color="#d5b892"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#bamboo-grad)"/><g filter="url(#bamboo-grain)" opacity="0.5"><line x1="0" y1="18" x2="600" y2="18" stroke="#b89363" stroke-width="4"/><line x1="0" y1="50" x2="600" y2="50" stroke="#d5b283" stroke-width="7"/><line x1="0" y1="90" x2="600" y2="90" stroke="#aa8556" stroke-width="3"/><line x1="0" y1="135" x2="600" y2="135" stroke="#c8a576" stroke-width="6"/><line x1="0" y1="185" x2="600" y2="185" stroke="#b08b5c" stroke-width="4"/><line x1="0" y1="235" x2="600" y2="235" stroke="#d9b688" stroke-width="8"/><line x1="0" y1="290" x2="600" y2="290" stroke="#a37e50" stroke-width="3"/><line x1="0" y1="345" x2="600" y2="345" stroke="#c4a172" stroke-width="5"/></g></svg>`)}") center/cover no-repeat`,
+    sheenOverlay: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.08) 100%)',
+    badgeColor: 'bg-yellow-800/30 text-yellow-200 border-yellow-700/50',
+    shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.75), inset 0 1.5px 2px rgba(255, 255, 255, 0.4)'
+  },
+  // PLASTIC
+  {
+    id: 'plastic-white',
+    category: 'plastic',
+    name: 'Matte White PVC',
+    description: 'Standard 85.5mm x 54mm smooth waterproof matte white PVC plastic.',
+    bgColor: '#ffffff',
+    previewBg: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%)',
+    sheenOverlay: 'linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(241,245,249,0.2) 100%)',
+    badgeColor: 'bg-white/20 text-white border-white/30',
+    shadowStyle: '0 25px 45px -15px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
+  },
+  {
+    id: 'plastic-black',
+    category: 'plastic',
+    name: 'Matte Black PVC',
+    description: 'Sleek waterproof matte black PVC plastic card with NFC chip inside.',
+    bgColor: '#18181b',
+    previewBg: 'linear-gradient(135deg, #27272a 0%, #09090b 100%)',
+    sheenOverlay: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.3) 100%)',
+    badgeColor: 'bg-neutral-800 text-neutral-300 border-neutral-700',
+    shadowStyle: '0 25px 45px -15px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(255, 255, 255, 0.25)'
+  }
+];
+
 export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = {}) {
   const [user, setUser] = useState<DbUser | null>(null);
   const [userImages, setUserImages] = useState<ImageAsset[]>([]);
@@ -496,7 +580,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<ElementData | null>(null);
-  const [activeTab, setActiveTab] = useState<'templates' | 'text' | 'elements' | 'image' | 'background' | 'draw'>('templates');
+  const [activeTab, setActiveTab] = useState<'templates' | 'material' | 'text' | 'elements' | 'image' | 'background' | 'draw'>('templates');
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>('metal-silver');
+  const [materialCategoryFilter, setMaterialCategoryFilter] = useState<'all' | 'metal' | 'plastic' | 'wood'>('all');
   const [isShapesOpen, setIsShapesOpen] = useState(false);
   const [isIconsOpen, setIsIconsOpen] = useState(false);
   const [zoom, setZoom] = useState(100);
@@ -506,11 +592,26 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const [drawThickness, setDrawThickness] = useState(4);
   const [drawTool, setDrawTool] = useState<'pen' | 'marker' | 'eraser'>('pen');
   const [snapGuides, setSnapGuides] = useState<{ x: number | null, y: number | null }>({ x: null, y: null });
+  const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5, active: false });
+
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (activeTab === 'draw') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setMousePos({ x, y, active: true });
+  };
+
+  const handleCardMouseLeave = () => {
+    setMousePos({ x: 0.5, y: 0.5, active: false });
+  };
+
   const isEraser = drawTool === 'eraser';
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentSideState = cardData[activeSide];
+  const selectedMaterial = MATERIALS.find(m => m.id === selectedMaterialId) || MATERIALS[0];
 
   const getNextZ = () => {
     return Math.max(0, ...currentSideState.elements.map(e => e.z || 0)) + 1;
@@ -801,8 +902,15 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     <section id="customizer" className="relative bg-[#050505] h-[90vh] border-t border-white/5 flex flex-col">
       {/* Top Header */}
       <header className="flex justify-between items-center px-6 py-4 bg-[#111] border-b border-white/10 z-20">
-        <div>
+        <div className="flex items-center space-x-4">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-[0.4em] block">Design Studio</span>
+          {selectedMaterial && (
+            <div className="hidden lg:flex items-center space-x-2 bg-white/5 px-3 py-1 rounded-full border border-white/10 text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-gray-400">Material:</span>
+              <span className="font-semibold text-white">{selectedMaterial.name}</span>
+            </div>
+          )}
         </div>
         <div className="flex space-x-4 items-center">
           <div className="flex bg-black/50 p-1 rounded-lg border border-white/10">
@@ -833,6 +941,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         {/* Far-Left Navigation Sidebar */}
         <div className="w-[80px] bg-[#111] flex flex-col items-center py-6 border-r border-white/10 space-y-2 z-20 shrink-0">
           {[
+            { id: 'material', icon: Layers, label: 'Material' },
             { id: 'templates', icon: LayoutTemplate, label: 'Templates' },
             { id: 'background', icon: Palette, label: 'Color' },
             { id: 'text', icon: Type, label: 'Text' },
@@ -855,6 +964,64 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         {/* Secondary Context Panel (Slide out) */}
         <div className="w-[320px] bg-[#151515] border-r border-white/10 flex flex-col z-10 shrink-0 shadow-2xl">
           <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
+            {activeTab === 'material' && (
+              <div className="animate-in fade-in slide-in-from-left-4">
+                <h3 className="text-lg font-serif text-white mb-1">Card Material</h3>
+                <p className="text-xs text-gray-400 mb-6">Choose your card texture and finish</p>
+
+                {/* Filter Switcher */}
+                <div className="grid grid-cols-4 gap-1 p-1 bg-[#1a1a1a] rounded-xl border border-white/10 mb-6">
+                  {(['all', 'metal', 'plastic', 'wood'] as const).map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setMaterialCategoryFilter(cat)}
+                      className={`py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all capitalize ${materialCategoryFilter === cat ? 'bg-white text-black shadow-md' : 'text-gray-400 hover:text-white'}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Material List */}
+                <div className="space-y-4">
+                  {MATERIALS.filter(m => materialCategoryFilter === 'all' || m.category === materialCategoryFilter).map(material => {
+                    const isSelected = selectedMaterialId === material.id;
+                    return (
+                      <button
+                        key={material.id}
+                        onClick={() => {
+                          setSelectedMaterialId(material.id);
+                          updateCurrentSide({ bgColor: material.bgColor });
+                        }}
+                        className={`w-full text-left p-4 rounded-xl border transition-all relative overflow-hidden group ${isSelected ? 'bg-white/10 border-white ring-1 ring-white/30' : 'bg-[#1a1a1a] border-white/5 hover:border-white/20 hover:bg-white/5'}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-6 h-6 rounded-full border border-white/20 shadow-md relative overflow-hidden shrink-0" style={{ background: material.previewBg }}>
+                              {material.sheenOverlay && (
+                                <div className="absolute inset-0 mix-blend-overlay opacity-80" style={{ background: material.sheenOverlay }}></div>
+                              )}
+                            </div>
+                            <span className="text-sm font-bold text-white group-hover:text-white transition-colors">{material.name}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-3 leading-relaxed">{material.description}</p>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border capitalize ${material.badgeColor}`}>
+                            {material.category}
+                          </span>
+                          {isSelected && (
+                            <span className="text-[10px] font-bold text-white flex items-center">
+                              <Check className="w-3 h-3 mr-1 text-emerald-400" /> Selected
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {activeTab === 'draw' && (
               <div className="animate-in fade-in slide-in-from-left-4">
@@ -1299,10 +1466,13 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             {/* Card Container */}
             <div
               ref={containerRef}
-              className="relative shrink-0 perspective-1000"
+              onMouseMove={handleCardMouseMove}
+              onMouseLeave={handleCardMouseLeave}
+              className="relative shrink-0 perspective-1000 cursor-pointer"
               style={{
                 width: orientation === 'horizontal' ? '428px' : '270px',
                 height: orientation === 'horizontal' ? '270px' : '428px',
+                perspective: '1200px'
               }}
             >
               <motion.div
@@ -1310,11 +1480,43 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
-                className="absolute inset-0 rounded-2xl transition-all duration-500 z-10 overflow-hidden border border-white/10"
+                className="absolute inset-0 rounded-2xl transition-all duration-300 z-10 overflow-hidden border border-white/10"
                 style={{
                   backgroundColor: currentSideState.bgColor,
+                  boxShadow: selectedMaterial?.shadowStyle || '0 30px 60px -15px rgba(0, 0, 0, 0.85)',
+                  transform: mousePos.active
+                    ? `rotateY(${(mousePos.x - 0.5) * 18}deg) rotateX(${(0.5 - mousePos.y) * 18}deg)`
+                    : 'rotateY(0deg) rotateX(0deg)',
+                  transformStyle: 'preserve-3d'
                 }}
               >
+                {/* Material Texture & Sheen Overlay */}
+                {selectedMaterial && (
+                  <>
+                    <div
+                      className="absolute inset-0 pointer-events-none transition-all duration-500 z-0"
+                      style={{
+                        background: selectedMaterial.previewBg,
+                        opacity: currentSideState.bgColor === selectedMaterial.bgColor ? 1 : 0.85
+                      }}
+                    />
+                    {selectedMaterial.sheenOverlay && (
+                      <div
+                        className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-60 z-0"
+                        style={{ background: selectedMaterial.sheenOverlay }}
+                      />
+                    )}
+                    {/* Dynamic Interactive Glare & Specular Reflection */}
+                    <div
+                      className="absolute inset-0 pointer-events-none z-10 transition-opacity duration-300"
+                      style={{
+                        background: `radial-gradient(circle at ${mousePos.x * 100}% ${mousePos.y * 100}%, rgba(255,255,255,${selectedMaterial.category === 'metal' ? 0.35 : selectedMaterial.category === 'wood' ? 0.22 : 0.28}) 0%, rgba(255,255,255,0) 65%)`,
+                        opacity: mousePos.active ? 1 : 0.15
+                      }}
+                    />
+                  </>
+                )}
+
                 {currentSideState.elements.map(el => {
                   const IconComp = el.type === 'icon' ? ICONS.find(i => i.id === el.iconId)?.component || SmartphoneNfc : null;
                   return (
