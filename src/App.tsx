@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import WhyReviews from './components/WhyReviews';
@@ -16,6 +16,16 @@ const CardCustomizer = lazy(() => import('./components/CardCustomizer'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const ClientPortal = lazy(() => import('./components/ClientPortal'));
 
+// Helper redirect component when logged-out user tries to access /portal
+const ClientPortalRedirect = ({ onOpenAuth }: { onOpenAuth: () => void }) => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate('/');
+    onOpenAuth();
+  }, [navigate, onOpenAuth]);
+  return null;
+};
+
 // Loader component for Suspense
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-[#050505]">
@@ -27,6 +37,7 @@ function AppContent() {
   const [user, setUser] = useState<User | null>(() => db.getCurrentUser());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isHomePage = location.pathname === '/';
   const isAdmin = location.pathname === '/admin';
@@ -72,12 +83,23 @@ function AppContent() {
                 </Suspense>
               } />
               <Route path="/portal" element={
-                <Suspense fallback={<PageLoader />}>
-                  <ClientPortal 
-                    user={user!} 
-                    onLogout={() => setUser(null)}
-                  />
-                </Suspense>
+                user ? (
+                  <Suspense fallback={<PageLoader />}>
+                    <ClientPortal 
+                      user={user} 
+                      onLogout={() => {
+                        setUser(null);
+                        navigate('/');
+                      }}
+                      onOpenProject={() => navigate('/studio')}
+                      onNewProject={() => navigate('/studio')}
+                    />
+                  </Suspense>
+                ) : (
+                  <Suspense fallback={<PageLoader />}>
+                    <ClientPortalRedirect onOpenAuth={() => setIsAuthModalOpen(true)} />
+                  </Suspense>
+                )
               } />
               <Route path="/admin" element={
                 <Suspense fallback={<PageLoader />}>

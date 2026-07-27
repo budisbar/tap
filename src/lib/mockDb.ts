@@ -50,14 +50,23 @@ class MockDatabase {
   async signUp(email: string, password?: string, name?: string): Promise<User> {
     await delay(500);
     const users = this.getUsers();
-    if (users.find(u => u.email === email)) {
-      throw new Error('Email already in use');
+    const cleanEmail = email.trim().toLowerCase();
+    const existingUser = users.find(u => u.email.trim().toLowerCase() === cleanEmail);
+
+    if (existingUser) {
+      // If signed in via Google or correct password, log them in
+      if (!password || existingUser.password === password) {
+        this.setCurrentUser(existingUser);
+        return existingUser;
+      }
+      throw new Error('An account with this email already exists. Please log in.');
     }
+
     const newUser: User = {
       id: crypto.randomUUID(),
-      email,
+      email: email.trim(),
       password,
-      name,
+      name: name || email.split('@')[0],
       createdAt: Date.now()
     };
     this.saveUsers([...users, newUser]);
@@ -68,11 +77,28 @@ class MockDatabase {
   async signIn(email: string, password?: string): Promise<User> {
     await delay(500);
     const users = this.getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
-    if (!user && password) { // if password is provided, must match
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Passwordless / Google Sign-In
+    if (!password) {
+      let user = users.find(u => u.email.trim().toLowerCase() === cleanEmail);
+      if (!user) {
+        user = {
+          id: crypto.randomUUID(),
+          email: email.trim(),
+          name: email.split('@')[0],
+          createdAt: Date.now()
+        };
+        this.saveUsers([...users, user]);
+      }
+      this.setCurrentUser(user);
+      return user;
+    }
+
+    // Email + Password Sign-In
+    const user = users.find(u => u.email.trim().toLowerCase() === cleanEmail && u.password === password);
+    if (!user) {
       throw new Error('Invalid email or password');
-    } else if (!user) { // for google mock login if account doesn't exist
-       return this.signUp(email, password, email.split('@')[0]);
     }
     this.setCurrentUser(user);
     return user;

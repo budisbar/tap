@@ -46,23 +46,18 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
       const credentials = await signInWithGoogle();
       const user = credentials.user;
 
-      // 2. Sync the Firebase user into our mock database
-      // If the email doesn't exist, this will automatically create an account in our system.
-      // If it exists, it logs them in locally.
-      try {
-        await db.signIn(user.email!);
-      } catch (e) {
-        // user doesn't exist locally, sign them up
-        await db.signUp(user.email!, undefined, user.displayName || undefined);
+      if (user.email) {
+        // 2. Sync Google user into database (signs in if exists, creates if new)
+        await db.signIn(user.email);
       }
 
       onSuccess();
       onClose();
     } catch (err: any) {
-      if (err.message.includes('Firebase is not configured')) {
+      if (err?.message?.includes('Firebase is not configured')) {
         setError("Firebase is not configured yet! Check src/lib/firebase.ts");
       } else {
-        setError(err.message);
+        setError(err?.message || 'Google authentication failed');
       }
     } finally {
       setIsLoading(false);
