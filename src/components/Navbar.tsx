@@ -39,7 +39,7 @@ export default function Navbar({ user, onAuthClick }: NavbarProps) {
   const handleNav = (id: string) => {
     setIsOpen(false);
     
-    if (id === 'studio' || id === 'portal') {
+    if (id === 'studio' || id === 'portal' || id === 'account') {
       navigate(`/${id}`);
       return;
     }
@@ -54,6 +54,7 @@ export default function Navbar({ user, onAuthClick }: NavbarProps) {
   const isHome = location.pathname === '/';
   const isStudio = location.pathname === '/studio';
   const isPortal = location.pathname === '/portal';
+  const isAccount = location.pathname === '/account';
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-md border-b border-white/10">
@@ -76,11 +77,17 @@ export default function Navbar({ user, onAuthClick }: NavbarProps) {
           
           {/* Auth Button & Studio - Right */}
           <div className="hidden lg:flex items-center justify-end flex-1 text-xs font-medium tracking-widest uppercase space-x-4">
-            <button onClick={() => handleNav('studio')} className={`px-6 py-3 rounded-full transition-all text-sm shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] hover:scale-105 ${isStudio ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+            <button onClick={() => {
+              if (user) {
+                handleNav('portal');
+              } else {
+                onAuthClick();
+              }
+            }} className={`px-6 py-3 rounded-full transition-all text-sm shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] hover:scale-105 ${isPortal || isStudio ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}>
               Design Studio
             </button>
             {user ? (
-              <button onClick={() => handleNav('portal')} className="flex items-center space-x-2 px-6 py-2.5 bg-white text-black rounded-full hover:bg-gray-200 transition-all font-semibold">
+              <button onClick={() => handleNav('account')} className={`flex items-center space-x-2 px-6 py-2.5 rounded-full transition-all font-semibold border border-transparent ${isAccount ? 'bg-white text-black' : 'text-white hover:bg-white/10 border-white/20'}`}>
                 <UserIcon className="w-4 h-4" />
                 <span className="capitalize">{user.name || user.email.split('@')[0]}</span>
               </button>
@@ -109,9 +116,17 @@ export default function Navbar({ user, onAuthClick }: NavbarProps) {
           <button onClick={() => handleNav('contact')} className={`block w-full text-left px-3 py-2 text-sm tracking-widest uppercase font-medium ${isHome && activeSection === 'contact' ? 'text-white' : 'text-gray-400 hover:text-white'}`}>Contact</button>
           
           <div className="border-t border-white/10 pt-4 mt-4 space-y-4">
-            <button onClick={() => handleNav('studio')} className={`block w-full text-center px-4 py-3 text-sm tracking-widest uppercase font-bold rounded-xl ${isStudio ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>Design Studio</button>
+            <button onClick={() => {
+              if (user) {
+                handleNav('portal');
+              } else {
+                setIsOpen(false);
+                onAuthClick();
+              }
+            }} className={`block w-full text-center px-4 py-3 text-sm tracking-widest uppercase font-bold rounded-xl ${isPortal || isStudio ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>Design Studio</button>
             {user ? (
-              <button onClick={() => handleNav('portal')} className={`block w-full text-center px-4 py-3 text-sm tracking-widest uppercase font-medium capitalize border border-white/20 rounded-xl ${isPortal ? 'text-white' : 'text-gray-400 hover:text-white'}`}>{user.name || user.email.split('@')[0]}</button>
+              <button onClick={() => handleNav('account')} className={`block w-full text-center px-4 py-3 text-sm tracking-widest uppercase font-medium capitalize border rounded-xl ${isAccount ? 'bg-white text-black border-transparent' : 'border-white/20 text-gray-400 hover:text-white'}`}>{user.name || user.email.split('@')[0]}</button>
+
             ) : (
               <button onClick={() => { setIsOpen(false); onAuthClick(); }} className="block w-full text-center px-4 py-3 text-sm tracking-widest uppercase font-medium text-white border border-white/20 rounded-xl">Sign In</button>
             )}

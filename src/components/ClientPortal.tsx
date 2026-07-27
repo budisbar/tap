@@ -1,38 +1,57 @@
 import { useState, useEffect } from 'react';
 import { db, User, Project, ImageAsset } from '../lib/mockDb';
-import { LogOut, Plus, Image as ImageIcon, Layout, Clock } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Plus, Image as ImageIcon, Layout, Clock, Trash2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ClientPortalProps {
   user: User;
-  onLogout: () => void;
   onOpenProject: (projectId: string) => void;
   onNewProject: () => void;
 }
 
-export default function ClientPortal({ user, onLogout, onOpenProject, onNewProject }: ClientPortalProps) {
+export default function ClientPortal({ user, onOpenProject, onNewProject }: ClientPortalProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [images, setImages] = useState<ImageAsset[]>([]);
   const [activeTab, setActiveTab] = useState<'projects' | 'images'>('projects');
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    const [userProjects, userImages] = await Promise.all([
+      db.getProjectsByUser(user.id),
+      db.getImagesByUser(user.id)
+    ]);
+    setProjects(userProjects);
+    setImages(userImages);
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      const [userProjects, userImages] = await Promise.all([
-        db.getProjectsByUser(user.id),
-        db.getImagesByUser(user.id)
-      ]);
-      setProjects(userProjects);
-      setImages(userImages);
-      setIsLoading(false);
-    };
     fetchData();
   }, [user.id]);
 
-  const handleLogout = async () => {
-    await db.signOut();
-    onLogout();
+  const handleDeleteProjectClick = (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    setProjectToDelete(projectId);
+    setDeleteConfirmText('');
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete || deleteConfirmText !== 'CONFIRM') return;
+    try {
+      await db.deleteProject(user.id, projectToDelete);
+      setDeleteModalOpen(false);
+      setProjectToDelete(null);
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -42,8 +61,7 @@ export default function ClientPortal({ user, onLogout, onOpenProject, onNewProje
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/10 pb-8 gap-6">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight mb-2">Welcome back, {user.name || user.email.split('@')[0]}</h1>
-            <p className="text-gray-400">Manage your tap&con ecosystem account.</p>
+            <h1 className="text-4xl font-bold tracking-tight mb-2">Welcome to the tap&con design studio</h1>
           </div>
           <div className="flex items-center space-x-4">
             <button
@@ -52,13 +70,6 @@ export default function ClientPortal({ user, onLogout, onOpenProject, onNewProje
             >
               <Plus className="w-4 h-4" />
               <span>New Design</span>
-            </button>
-            <button
-              onClick={handleLogout}
-              className="p-2 border border-white/10 rounded-full text-gray-400 hover:text-white hover:border-white/30 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -109,7 +120,18 @@ export default function ClientPortal({ user, onLogout, onOpenProject, onNewProje
                       className="group cursor-pointer bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 hover:border-white/30 transition-all hover:-translate-y-1"
                     >
                       <div className="aspect-[1.58] bg-[#111] rounded-xl mb-4 flex items-center justify-center relative overflow-hidden group-hover:bg-[#1a1a1a] transition-colors">
-                        <Layout className="w-8 h-8 text-gray-700" />
+                        {p.previewUrl ? (
+                          <img src={p.previewUrl} alt={p.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                        ) : (
+                          <Layout className="w-8 h-8 text-gray-700" />
+                        )}
+                        <button
+                          onClick={(e) => handleDeleteProjectClick(e, p.id)}
+                          className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-red-500/80 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                          title="Delete Design"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                       <h3 className="font-semibold text-lg mb-1">{p.name}</h3>
                       <div className="flex items-center text-xs text-gray-500 space-x-1">
@@ -144,6 +166,56 @@ export default function ClientPortal({ user, onLogout, onOpenProject, onNewProje
         )}
 
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative"
+            >
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h2 className="text-xl font-bold mb-2">Delete Design</h2>
+              <p className="text-gray-400 mb-6 text-sm">
+                This action cannot be undone. Please type <strong>CONFIRM</strong> to delete this design permanently.
+              </p>
+
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type CONFIRM"
+                  className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition-colors"
+                />
+
+                <button
+                  onClick={confirmDeleteProject}
+                  disabled={deleteConfirmText !== 'CONFIRM'}
+                  className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
+                >
+                  Delete Design
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

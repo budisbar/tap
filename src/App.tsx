@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import WhyReviews from './components/WhyReviews';
@@ -15,16 +15,7 @@ import { db, User } from './lib/mockDb';
 const CardCustomizer = lazy(() => import('./components/CardCustomizer'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const ClientPortal = lazy(() => import('./components/ClientPortal'));
-
-// Helper redirect component when logged-out user tries to access /portal
-const ClientPortalRedirect = ({ onOpenAuth }: { onOpenAuth: () => void }) => {
-  const navigate = useNavigate();
-  useEffect(() => {
-    navigate('/');
-    onOpenAuth();
-  }, [navigate, onOpenAuth]);
-  return null;
-};
+const UserAccount = lazy(() => import('./components/UserAccount'));
 
 // Loader component for Suspense
 const PageLoader = () => (
@@ -87,18 +78,27 @@ function AppContent() {
                   <Suspense fallback={<PageLoader />}>
                     <ClientPortal 
                       user={user} 
-                      onLogout={() => {
-                        setUser(null);
-                        navigate('/');
-                      }}
-                      onOpenProject={() => navigate('/studio')}
+                      onOpenProject={(id) => navigate(`/studio?project=${id}`)}
                       onNewProject={() => navigate('/studio')}
                     />
                   </Suspense>
                 ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+              <Route path="/account" element={
+                user ? (
                   <Suspense fallback={<PageLoader />}>
-                    <ClientPortalRedirect onOpenAuth={() => setIsAuthModalOpen(true)} />
+                    <UserAccount 
+                      user={user} 
+                      onLogout={() => {
+                        setUser(null);
+                        navigate('/');
+                      }}
+                    />
                   </Suspense>
+                ) : (
+                  <Navigate to="/" replace />
                 )
               } />
               <Route path="/admin" element={

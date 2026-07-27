@@ -11,6 +11,7 @@ export interface Project {
   userId: string;
   name: string;
   data: any;
+  previewUrl?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -54,6 +55,9 @@ class MockDatabase {
     const existingUser = users.find(u => u.email.trim().toLowerCase() === cleanEmail);
 
     if (existingUser) {
+      if (!existingUser.password && password) {
+        throw new Error('This account uses Google Sign-In. Please click the Google button below.');
+      }
       // If signed in via Google or correct password, log them in
       if (!password || existingUser.password === password) {
         this.setCurrentUser(existingUser);
@@ -96,8 +100,14 @@ class MockDatabase {
     }
 
     // Email + Password Sign-In
-    const user = users.find(u => u.email.trim().toLowerCase() === cleanEmail && u.password === password);
+    const user = users.find(u => u.email.trim().toLowerCase() === cleanEmail);
     if (!user) {
+      throw new Error('Invalid email or password');
+    }
+    if (!user.password && password) {
+      throw new Error('This account uses Google Sign-In. Please click the Google button below.');
+    }
+    if (user.password !== password) {
       throw new Error('Invalid email or password');
     }
     this.setCurrentUser(user);
@@ -118,9 +128,51 @@ class MockDatabase {
     localStorage.setItem('mock_current_user', JSON.stringify(user));
   }
 
+  async updateUserName(userId: string, newName: string): Promise<void> {
+    await delay(300);
+    const users = this.getUsers();
+    const userIndex = users.findIndex(u => u.id === userId);
+    
+    if (userIndex === -1) {
+      throw new Error('User not found.');
+    }
+    
+    users[userIndex].name = newName;
+    this.saveUsers(users);
+
+    const currentUser = this.getCurrentUser();
+    if (currentUser && currentUser.id === userId) {
+      currentUser.name = newName;
+      this.setCurrentUser(currentUser);
+    }
+  }
+
+  async changePassword(userId: string, newPassword: string): Promise<void> {
+    await delay(500);
+    const users = this.getUsers();
+    const userIndex = users.findIndex(u => u.id === userId);
+    
+    if (userIndex === -1) {
+      throw new Error('User not found.');
+    }
+    
+    if (!users[userIndex].password) {
+      throw new Error('This account uses Google Sign-In and cannot have its password changed here.');
+    }
+
+    users[userIndex].password = newPassword;
+    this.saveUsers(users);
+
+    const currentUser = this.getCurrentUser();
+    if (currentUser && currentUser.id === userId) {
+      currentUser.password = newPassword;
+      this.setCurrentUser(currentUser);
+    }
+  }
+
   // --- PROJECTS ---
 
-  async saveProject(userId: string, name: string, data: any): Promise<Project> {
+  async saveProject(userId: string, name: string, data: any, previewUrl?: string): Promise<Project> {
     await delay(300);
     const projects: Project[] = JSON.parse(localStorage.getItem('mock_projects') || '[]');
     const newProject: Project = {
@@ -128,12 +180,54 @@ class MockDatabase {
       userId,
       name,
       data,
+      previewUrl,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
     projects.push(newProject);
     localStorage.setItem('mock_projects', JSON.stringify(projects));
     return newProject;
+  }
+
+  async updateProject(userId: string, projectId: string, name: string, data: any, previewUrl?: string): Promise<Project> {
+    await delay(300);
+    const projects: Project[] = JSON.parse(localStorage.getItem('mock_projects') || '[]');
+    const index = projects.findIndex(p => p.id === projectId && p.userId === userId);
+    
+    if (index === -1) {
+      throw new Error('Project not found or unauthorized');
+    }
+
+    const updatedProject = {
+      ...projects[index],
+      name,
+      data,
+      previewUrl: previewUrl || projects[index].previewUrl,
+      updatedAt: Date.now()
+    };
+
+    projects[index] = updatedProject;
+    localStorage.setItem('mock_projects', JSON.stringify(projects));
+    return updatedProject;
+  }
+
+  async getProjectById(userId: string, projectId: string): Promise<Project | null> {
+    await delay(200);
+    const projects: Project[] = JSON.parse(localStorage.getItem('mock_projects') || '[]');
+    return projects.find(p => p.id === projectId && p.userId === userId) || null;
+  }
+
+  async deleteProject(userId: string, projectId: string): Promise<void> {
+    await delay(200);
+    let projects: Project[] = JSON.parse(localStorage.getItem('mock_projects') || '[]');
+    const initialLength = projects.length;
+    projects = projects.filter(p => !(p.id === projectId && p.userId === userId));
+    
+    if (projects.length === initialLength) {
+      throw new Error('Project not found or unauthorized');
+    }
+    
+    localStorage.setItem('mock_projects', JSON.stringify(projects));
   }
 
   async getProjectsByUser(userId: string): Promise<Project[]> {

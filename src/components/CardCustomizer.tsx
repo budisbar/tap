@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, useMotionValue } from 'motion/react';
-import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
+import { motion, useMotionValue, AnimatePresence } from 'motion/react';
+import { toPng, toJpeg } from 'html-to-image';
 import {
   SmartphoneNfc, Star, Utensils, Wifi, Type, Trash2, RectangleHorizontal, RectangleVertical, Image as ImageIcon, Square, ArrowUp, ArrowDown, ChevronDown, ChevronRight,
   Waves, Coffee, ShoppingBag, Heart, User, MapPin, Phone, Mail, Globe, Instagram, Facebook, Twitter, Linkedin, Github, MessageCircle, Music, Video, Camera, Anchor, Zap, Shield, Sun, Moon, Cloud, Droplet, Hexagon, Triangle, Circle, Shapes,
@@ -10,6 +11,7 @@ import {
   Plane, Car, Bus, Train, Compass, Navigation, Umbrella, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, Unlock, Save
 } from 'lucide-react';
 import { db, User as DbUser, ImageAsset } from '../lib/mockDb';
+import { useSearchParams } from 'react-router-dom';
 
 const ContactlessIcon = ({ className, ...props }: any) => (
   <svg
@@ -505,31 +507,31 @@ export const MATERIALS: CardMaterial[] = [
     category: 'wood',
     name: 'Dark Walnut Wood',
     description: '100% natural organic dark walnut wood with deep horizontal fiber grain streaks.',
-    bgColor: '#52321c',
-    previewBg: `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380"><defs><filter id="walnut-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.005 0.06" numOctaves="5" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="18" xChannelSelector="R" yChannelSelector="G"/></filter><linearGradient id="walnut-grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#6a3d24"/><stop offset="35%" stop-color="#512c17"/><stop offset="70%" stop-color="#5c341e"/><stop offset="100%" stop-color="#422210"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#walnut-grad)"/><g filter="url(#walnut-grain)" opacity="0.75"><line x1="0" y1="20" x2="600" y2="20" stroke="#361a0b" stroke-width="12"/><line x1="0" y1="60" x2="600" y2="60" stroke="#251005" stroke-width="8"/><line x1="0" y1="110" x2="600" y2="110" stroke="#452311" stroke-width="16"/><line x1="0" y1="165" x2="600" y2="165" stroke="#1d0a03" stroke-width="10"/><line x1="0" y1="220" x2="600" y2="220" stroke="#3b1d0c" stroke-width="18"/><line x1="0" y1="280" x2="600" y2="280" stroke="#281106" stroke-width="14"/><line x1="0" y1="340" x2="600" y2="340" stroke="#482613" stroke-width="11"/></g></svg>`)}") center/cover no-repeat`,
-    sheenOverlay: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.2) 100%)',
+    bgColor: '#3f2113',
+    previewBg: `url("https://images.unsplash.com/photo-1550684376-efcbd6e3f031?q=80&w=1000&auto=format&fit=crop") center/cover no-repeat`,
+    sheenOverlay: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.3) 100%)',
     badgeColor: 'bg-amber-900/40 text-amber-200 border-amber-800',
-    shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.8), inset 0 1.5px 2px rgba(255, 255, 255, 0.35)'
+    shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.8), inset 0 1.5px 2px rgba(255, 255, 255, 0.25)'
   },
   {
     id: 'wood-cherry',
     category: 'wood',
     name: 'Cherry Sapele Wood',
     description: 'Warm mahogany-cherry wood finish with rich warm reddish tones and organic grain waves.',
-    bgColor: '#c17252',
-    previewBg: `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380"><defs><filter id="cherry-wave" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.003 0.03" numOctaves="4" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="28" xChannelSelector="R" yChannelSelector="G"/></filter><linearGradient id="cherry-grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ca7857"/><stop offset="40%" stop-color="#b46342"/><stop offset="75%" stop-color="#c57453"/><stop offset="100%" stop-color="#9e4e30"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#cherry-grad)"/><g filter="url(#cherry-wave)" opacity="0.65"><rect y="10" width="600" height="40" fill="#9e4b2d"/><rect y="75" width="600" height="55" fill="#d38260"/><rect y="150" width="600" height="65" fill="#8d3c20"/><rect y="235" width="600" height="50" fill="#c47250"/><rect y="310" width="600" height="55" fill="#833319"/></g></svg>`)}") center/cover no-repeat`,
-    sheenOverlay: 'radial-gradient(ellipse at 40% 50%, rgba(255,210,185,0.2) 0%, transparent 70%)',
+    bgColor: '#7a311b',
+    previewBg: `url("https://images.unsplash.com/photo-1531685250784-af587040dc8d?q=80&w=1000&auto=format&fit=crop") center/cover no-repeat`,
+    sheenOverlay: 'radial-gradient(ellipse at 40% 50%, rgba(255,210,185,0.15) 0%, transparent 70%)',
     badgeColor: 'bg-rose-900/40 text-rose-200 border-rose-800',
-    shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.78), inset 0 1.5px 2px rgba(255, 255, 255, 0.35)'
+    shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.78), inset 0 1.5px 2px rgba(255, 255, 255, 0.25)'
   },
   {
     id: 'wood-bamboo',
     category: 'wood',
     name: 'Natural Bamboo Wood',
     description: 'Eco-friendly light bamboo wood with fine linear horizontal wood grain.',
-    bgColor: '#ebd4b6',
-    previewBg: `url("data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380"><defs><filter id="bamboo-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.0015 0.16" numOctaves="3" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G"/></filter><linearGradient id="bamboo-grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#eed8ba"/><stop offset="35%" stop-color="#dfc4a0"/><stop offset="70%" stop-color="#ebd2b3"/><stop offset="100%" stop-color="#d5b892"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#bamboo-grad)"/><g filter="url(#bamboo-grain)" opacity="0.5"><line x1="0" y1="18" x2="600" y2="18" stroke="#b89363" stroke-width="4"/><line x1="0" y1="50" x2="600" y2="50" stroke="#d5b283" stroke-width="7"/><line x1="0" y1="90" x2="600" y2="90" stroke="#aa8556" stroke-width="3"/><line x1="0" y1="135" x2="600" y2="135" stroke="#c8a576" stroke-width="6"/><line x1="0" y1="185" x2="600" y2="185" stroke="#b08b5c" stroke-width="4"/><line x1="0" y1="235" x2="600" y2="235" stroke="#d9b688" stroke-width="8"/><line x1="0" y1="290" x2="600" y2="290" stroke="#a37e50" stroke-width="3"/><line x1="0" y1="345" x2="600" y2="345" stroke="#c4a172" stroke-width="5"/></g></svg>`)}") center/cover no-repeat`,
-    sheenOverlay: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.08) 100%)',
+    bgColor: '#d1b28e',
+    previewBg: `url("https://images.unsplash.com/photo-1520106208823-3889154aefdf?q=80&w=1000&auto=format&fit=crop") center/cover no-repeat`,
+    sheenOverlay: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.1) 100%)',
     badgeColor: 'bg-yellow-800/30 text-yellow-200 border-yellow-700/50',
     shadowStyle: '0 30px 50px -15px rgba(0, 0, 0, 0.75), inset 0 1.5px 2px rgba(255, 255, 255, 0.4)'
   },
@@ -562,13 +564,25 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const [user, setUser] = useState<DbUser | null>(null);
   const [userImages, setUserImages] = useState<ImageAsset[]>([]);
 
+  const [searchParams] = useSearchParams();
+
   useEffect(() => {
     const currentUser = db.getCurrentUser();
     setUser(currentUser);
     if (currentUser) {
       db.getImagesByUser(currentUser.id).then(setUserImages);
+      
+      const projectId = searchParams.get('project');
+      if (projectId) {
+        db.getProjectById(currentUser.id, projectId).then(project => {
+          if (project) {
+            setCardData(project.data);
+            setSaveProjectName(project.name);
+          }
+        });
+      }
     }
-  }, []);
+  }, [searchParams]);
 
   const [orientation, setOrientation] = useState<Orientation>('horizontal');
   const [activeSide, setActiveSide] = useState<Side>('front');
@@ -732,20 +746,50 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSaveProject = async () => {
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveProjectName, setSaveProjectName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const executeSave = async (name: string) => {
+    if (!user || !name.trim()) return;
+    setIsSaving(true);
+    try {
+      let previewUrl = undefined;
+      const frontEl = document.getElementById('capture-front');
+      if (frontEl) {
+        previewUrl = await toJpeg(frontEl, { quality: 0.9, pixelRatio: 2, cacheBust: true });
+      }
+      const projectId = searchParams.get('project');
+      if (projectId) {
+        await db.updateProject(user.id, projectId, name.trim(), cardData, previewUrl);
+      } else {
+        await db.saveProject(user.id, name.trim(), cardData, previewUrl);
+      }
+      setIsSaveModalOpen(false);
+    } catch (err: any) {
+      alert('Failed to save project: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveProjectClick = () => {
     if (!user) {
       alert('Please sign in to save designs to your account.');
       return;
     }
-    const name = prompt('Name your design:');
-    if (name) {
-      try {
-        await db.saveProject(user.id, name, cardData);
-        alert('Design saved successfully! You can access it in your Account.');
-      } catch (err: any) {
-        alert('Failed to save project: ' + err.message);
-      }
+    const projectId = searchParams.get('project');
+    if (projectId && saveProjectName.trim()) {
+      executeSave(saveProjectName);
+    } else {
+      setSaveProjectName('');
+      setIsSaveModalOpen(true);
     }
+  };
+
+  const confirmSaveProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeSave(saveProjectName);
   };
 
   const moveZIndex = (id: string, direction: 'up' | 'down') => {
@@ -864,32 +908,40 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       const frontEl = document.getElementById('capture-front');
       const backEl = document.getElementById('capture-back');
 
+      // Create a new jsPDF instance (standard credit card size: 85.6mm x 53.98mm)
+      // If horizontal, landscape. If vertical, portrait.
+      const pdf = new jsPDF({
+        orientation: orientation === 'horizontal' ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: [85.6, 53.98]
+      });
+
       const options = {
-        canvasWidth: orientation === 'horizontal' ? 2397 : 1510,
-        canvasHeight: orientation === 'horizontal' ? 1510 : 2397,
-        pixelRatio: orientation === 'horizontal' ? (2397 / 428) : (1510 / 270),
+        pixelRatio: 3,
         cacheBust: true,
       };
 
       if (frontEl) {
         const dataUrl = await toPng(frontEl, options);
-        const link = document.createElement('a');
-        link.download = 'tap-and-con-front.png';
-        link.href = dataUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // addImage(imageData, format, x, y, width, height)
+        if (orientation === 'horizontal') {
+          pdf.addImage(dataUrl, 'PNG', 0, 0, 85.6, 53.98);
+        } else {
+          pdf.addImage(dataUrl, 'PNG', 0, 0, 53.98, 85.6);
+        }
       }
 
       if (backEl) {
         const dataUrl = await toPng(backEl, options);
-        const link = document.createElement('a');
-        link.download = 'tap-and-con-back.png';
-        link.href = dataUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        pdf.addPage();
+        if (orientation === 'horizontal') {
+          pdf.addImage(dataUrl, 'PNG', 0, 0, 85.6, 53.98);
+        } else {
+          pdf.addImage(dataUrl, 'PNG', 0, 0, 53.98, 85.6);
+        }
       }
+
+      pdf.save('tapconnect-design.pdf');
     } catch (error: any) {
       console.error("Error generating image:", error);
       alert("Error generating your design: " + (error?.message || error));
@@ -925,9 +977,13 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
               <RectangleVertical className="w-4 h-4" />
             </button>
           </div>
-          <button onClick={handleSaveProject} className="px-6 py-2 bg-[#1a1a1a] border border-white/10 text-white hover:text-white hover:border-white/30 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all flex items-center space-x-2">
-            <Save className="w-3 h-3" />
-            <span>Save</span>
+          <button onClick={handleSaveProjectClick} className="px-6 py-2 bg-[#1a1a1a] border border-white/10 text-white hover:text-white hover:border-white/30 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all flex items-center space-x-2">
+            {isSaving ? (
+              <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              <Save className="w-3 h-3" />
+            )}
+            <span>{searchParams.get('project') ? 'Save' : 'Save Design'}</span>
           </button>
           <button onClick={handleDownload} className="px-6 py-2 bg-white text-black text-[10px] font-bold uppercase tracking-widest rounded-md hover:bg-gray-200 transition-all flex items-center">
             Download
@@ -941,8 +997,8 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         {/* Far-Left Navigation Sidebar */}
         <div className="w-[80px] bg-[#111] flex flex-col items-center py-6 border-r border-white/10 space-y-2 z-20 shrink-0">
           {[
-            { id: 'material', icon: Layers, label: 'Material' },
             { id: 'templates', icon: LayoutTemplate, label: 'Templates' },
+            { id: 'material', icon: Layers, label: 'Material' },
             { id: 'background', icon: Palette, label: 'Color' },
             { id: 'text', icon: Type, label: 'Text' },
             { id: 'elements', icon: Shapes, label: 'Elements' },
@@ -1497,7 +1553,8 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                       className="absolute inset-0 pointer-events-none transition-all duration-500 z-0"
                       style={{
                         background: selectedMaterial.previewBg,
-                        opacity: currentSideState.bgColor === selectedMaterial.bgColor ? 1 : 0.85
+                        mixBlendMode: selectedMaterial.category === 'wood' ? 'multiply' : 'normal',
+                        opacity: currentSideState.bgColor === selectedMaterial.bgColor ? (selectedMaterial.category === 'wood' ? 0.9 : 1) : 0.85
                       }}
                     />
                     {selectedMaterial.sheenOverlay && (
@@ -1676,6 +1733,65 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           </div>
         ))}
       </div>
+
+      {/* Save Project Custom Modal */}
+      <AnimatePresence>
+        {isSaveModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0a0a0a] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-serif text-white">Save Design</h2>
+                  <button onClick={() => setIsSaveModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <form onSubmit={confirmSaveProject}>
+                  <div className="mb-6">
+                    <label className="block text-xs text-gray-400 font-medium uppercase tracking-widest mb-2">Design Name</label>
+                    <input
+                      type="text"
+                      autoFocus
+                      required
+                      value={saveProjectName}
+                      onChange={(e) => setSaveProjectName(e.target.value)}
+                      className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-white/30 transition-colors"
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsSaveModalOpen(false)}
+                      className="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving || !saveProjectName.trim()}
+                      className="px-5 py-2.5 bg-white text-black rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    >
+                      {isSaving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Design'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
