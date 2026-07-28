@@ -11,6 +11,7 @@ export interface Project {
   userId: string;
   name: string;
   data: any;
+  productType?: 'card' | 'board';
   previewUrl?: string;
   createdAt: number;
   updatedAt: number;
@@ -172,7 +173,7 @@ class MockDatabase {
 
   // --- PROJECTS ---
 
-  async saveProject(userId: string, name: string, data: any, previewUrl?: string): Promise<Project> {
+  async saveProject(userId: string, name: string, data: any, previewUrl?: string, productType?: 'card' | 'board'): Promise<Project> {
     await delay(300);
     const projects: Project[] = JSON.parse(localStorage.getItem('mock_projects') || '[]');
     const newProject: Project = {
@@ -181,6 +182,7 @@ class MockDatabase {
       name,
       data,
       previewUrl,
+      productType,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -189,7 +191,7 @@ class MockDatabase {
     return newProject;
   }
 
-  async updateProject(userId: string, projectId: string, name: string, data: any, previewUrl?: string): Promise<Project> {
+  async updateProject(userId: string, projectId: string, name: string, data: any, previewUrl?: string, productType?: 'card' | 'board'): Promise<Project> {
     await delay(300);
     const projects: Project[] = JSON.parse(localStorage.getItem('mock_projects') || '[]');
     const index = projects.findIndex(p => p.id === projectId && p.userId === userId);
@@ -203,6 +205,7 @@ class MockDatabase {
       name,
       data,
       previewUrl: previewUrl || projects[index].previewUrl,
+      productType: productType || projects[index].productType,
       updatedAt: Date.now()
     };
 

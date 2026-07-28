@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import { db, User, Project, ImageAsset } from '../lib/mockDb';
-import { Plus, Image as ImageIcon, Layout, Clock, Trash2, X } from 'lucide-react';
+import { Plus, Image as ImageIcon, Layout, Clock, Trash2, X, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+const BoardIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M5 20h14" />
+    <path d="M19 20l1.5-3" />
+    <path d="M5.5 20l1.5-16h11l-1.5 16" />
+  </svg>
+);
 
 interface ClientPortalProps {
   user: User;
   onOpenProject: (projectId: string) => void;
-  onNewProject: () => void;
+  onNewProject: (type: 'card' | 'board') => void;
 }
 
 export default function ClientPortal({ user, onOpenProject, onNewProject }: ClientPortalProps) {
@@ -19,7 +27,8 @@ export default function ClientPortal({ user, onOpenProject, onNewProject }: Clie
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-
+  // Product Type Modal state
+  const [productTypeModalOpen, setProductTypeModalOpen] = useState(false);
   const fetchData = async () => {
     setIsLoading(true);
     const [userProjects, userImages] = await Promise.all([
@@ -65,7 +74,7 @@ export default function ClientPortal({ user, onOpenProject, onNewProject }: Clie
           </div>
           <div className="flex items-center space-x-4">
             <button
-              onClick={onNewProject}
+              onClick={() => setProductTypeModalOpen(true)}
               className="px-6 py-2 bg-white text-black font-semibold rounded-full hover:bg-gray-200 transition-colors flex items-center space-x-2"
             >
               <Plus className="w-4 h-4" />
@@ -209,6 +218,65 @@ export default function ClientPortal({ user, onOpenProject, onNewProject }: Clie
                   className="w-full py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
                 >
                   Delete Design
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Product Type Selection Modal */}
+      <AnimatePresence>
+        {productTypeModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#111] border border-white/10 rounded-2xl p-8 w-full max-w-2xl shadow-2xl relative"
+            >
+              <button
+                onClick={() => setProductTypeModalOpen(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h2 className="text-2xl font-bold mb-2 text-center">Choose your product</h2>
+              <p className="text-gray-400 mb-8 text-center">What would you like to design today?</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <button
+                  onClick={() => {
+                    setProductTypeModalOpen(false);
+                    onNewProject('card');
+                  }}
+                  className="group flex flex-col items-center justify-center p-8 bg-[#1a1a1a] border border-white/10 rounded-xl hover:border-white/30 hover:bg-[#222] transition-all"
+                >
+                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <CreditCard className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">NFC Card</h3>
+                  <p className="text-sm text-gray-400 text-center">Standard PVC or Metal smart business card.</p>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setProductTypeModalOpen(false);
+                    onNewProject('board');
+                  }}
+                  className="group flex flex-col items-center justify-center p-8 bg-[#1a1a1a] border border-white/10 rounded-xl hover:border-white/30 hover:bg-[#222] transition-all"
+                >
+                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <BoardIcon className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">NFC Board</h3>
+                  <p className="text-sm text-gray-400 text-center">Vertical tabletop display for businesses.</p>
                 </button>
               </div>
             </motion.div>

@@ -79,7 +79,7 @@ function AppContent() {
                     <ClientPortal 
                       user={user} 
                       onOpenProject={(id) => navigate(`/studio?project=${id}`)}
-                      onNewProject={() => navigate('/studio')}
+                      onNewProject={(type: 'card' | 'board') => navigate(`/studio?type=${type}`)}
                     />
                   </Suspense>
                 ) : (

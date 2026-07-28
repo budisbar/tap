@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Preview3DModal from './Preview3DModal';
 import { jsPDF } from 'jspdf';
 import { motion, useMotionValue, AnimatePresence } from 'motion/react';
 import { toPng, toJpeg } from 'html-to-image';
@@ -8,7 +9,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, Bold, Italic, LayoutTemplate, Palette, PenTool, Eraser, Highlighter, Layers,
   Youtube, Twitch, Dribbble, Figma, Slack, Check, X, Plus, Minus, ThumbsUp, ThumbsDown, Bookmark, Link, Share2, Search, Bell, Settings, Home, Calendar, Clock, Smile, Eye, EyeOff, Menu, Filter, Copy, Clipboard, Download, Upload,
   Briefcase, CreditCard, Tag, Truck, Gift, Key, Monitor, Laptop, Smartphone, Tablet, Watch, Headphones, Speaker, Battery, Database, HardDrive, Printer, Server, Mouse,
-  Plane, Car, Bus, Train, Compass, Navigation, Umbrella, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, Unlock, Save
+  Plane, Car, Bus, Train, Compass, Navigation, Umbrella, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, Unlock, Save, Box
 } from 'lucide-react';
 import { db, User as DbUser, ImageAsset } from '../lib/mockDb';
 import { useSearchParams } from 'react-router-dom';
@@ -573,19 +574,34 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       db.getImagesByUser(currentUser.id).then(setUserImages);
       
       const projectId = searchParams.get('project');
+      const urlType = searchParams.get('type');
+      
       if (projectId) {
         db.getProjectById(currentUser.id, projectId).then(project => {
           if (project) {
             setCardData(project.data);
             setSaveProjectName(project.name);
+            if (project.productType === 'board') {
+              setProductType('board');
+              setOrientation('vertical');
+            }
           }
         });
+      } else if (urlType === 'board') {
+        setProductType('board');
+        setOrientation('vertical');
       }
     }
   }, [searchParams]);
 
+  const [productType, setProductType] = useState<'card' | 'board'>('card');
   const [orientation, setOrientation] = useState<Orientation>('horizontal');
   const [activeSide, setActiveSide] = useState<Side>('front');
+
+  const [isPreview3DOpen, setIsPreview3DOpen] = useState(false);
+  const [previewFrontImage, setPreviewFrontImage] = useState('');
+  const [previewBackImage, setPreviewBackImage] = useState('');
+  const [isPreviewGenerating, setIsPreviewGenerating] = useState(false);
 
   const [cardData, setCardData] = useState<Record<Side, CardState>>({
     front: { bgColor: '#ffffff', elements: [] },
@@ -625,7 +641,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentSideState = cardData[activeSide];
-  const selectedMaterial = MATERIALS.find(m => m.id === selectedMaterialId) || MATERIALS[0];
+  const selectedMaterial = productType === 'board' ? null : (MATERIALS.find(m => m.id === selectedMaterialId) || MATERIALS[0]);
 
   const getNextZ = () => {
     return Math.max(0, ...currentSideState.elements.map(e => e.z || 0)) + 1;
@@ -761,9 +777,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       }
       const projectId = searchParams.get('project');
       if (projectId) {
-        await db.updateProject(user.id, projectId, name.trim(), cardData, previewUrl);
+        await db.updateProject(user.id, projectId, name.trim(), cardData, previewUrl, productType);
       } else {
-        await db.saveProject(user.id, name.trim(), cardData, previewUrl);
+        await db.saveProject(user.id, name.trim(), cardData, previewUrl, productType);
       }
       setIsSaveModalOpen(false);
     } catch (err: any) {
@@ -908,12 +924,13 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       const frontEl = document.getElementById('capture-front');
       const backEl = document.getElementById('capture-back');
 
-      // Create a new jsPDF instance (standard credit card size: 85.6mm x 53.98mm)
+      // Create a new jsPDF instance (standard credit card size: 85.6mm x 53.98mm, board: 100x150mm)
       // If horizontal, landscape. If vertical, portrait.
+      const pdfFormat = productType === 'board' ? [100, 150] : [85.6, 53.98];
       const pdf = new jsPDF({
-        orientation: orientation === 'horizontal' ? 'landscape' : 'portrait',
+        orientation: productType === 'board' ? 'portrait' : (orientation === 'horizontal' ? 'landscape' : 'portrait'),
         unit: 'mm',
-        format: [85.6, 53.98]
+        format: pdfFormat
       });
 
       const options = {
@@ -924,14 +941,16 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       if (frontEl) {
         const dataUrl = await toPng(frontEl, options);
         // addImage(imageData, format, x, y, width, height)
-        if (orientation === 'horizontal') {
+        if (productType === 'board') {
+          pdf.addImage(dataUrl, 'PNG', 0, 0, 100, 150);
+        } else if (orientation === 'horizontal') {
           pdf.addImage(dataUrl, 'PNG', 0, 0, 85.6, 53.98);
         } else {
           pdf.addImage(dataUrl, 'PNG', 0, 0, 53.98, 85.6);
         }
       }
 
-      if (backEl) {
+      if (backEl && productType !== 'board') {
         const dataUrl = await toPng(backEl, options);
         pdf.addPage();
         if (orientation === 'horizontal') {
@@ -948,6 +967,49 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     }
   };
 
+  const handle3DPreview = async () => {
+    setIsPreviewGenerating(true);
+    
+    // Temporarily deactivate mouse hover effect for flat capture
+    setMousePos({ x: 0.5, y: 0.5, active: false });
+    
+    // We need to wait a tick for the state to settle
+    setTimeout(async () => {
+      try {
+        const container = containerRef.current;
+        if (!container) return;
+
+        // Create a temporary clone for rendering both sides without switching UI
+        const frontEl = container.querySelector('div[style*="background-color"]') as HTMLElement;
+        const options = { pixelRatio: 3, cacheBust: true };
+        
+        // This is a simplified capture that uses the current active side as front.
+        // Ideally we would swap activeSide, wait, capture, swap back.
+        // For now, we capture the current DOM state as front image.
+        const frontDataUrl = await toPng(container, options);
+        setPreviewFrontImage(frontDataUrl);
+
+        if (productType !== 'board') {
+          // Temporarily flip the card to capture the back side
+          setActiveSide(activeSide === 'front' ? 'back' : 'front');
+          setTimeout(async () => {
+             const backDataUrl = await toPng(container, options);
+             setPreviewBackImage(backDataUrl);
+             setActiveSide(activeSide); // switch back
+             setIsPreviewGenerating(false);
+             setIsPreview3DOpen(true);
+          }, 300);
+        } else {
+          setIsPreviewGenerating(false);
+          setIsPreview3DOpen(true);
+        }
+      } catch (error) {
+        console.error("Error generating 3D preview:", error);
+        setIsPreviewGenerating(false);
+      }
+    }, 100);
+  };
+
   const selectedElement = currentSideState.elements.find(el => el.id === selectedElementId);
 
   return (
@@ -956,27 +1018,32 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       <header className="flex justify-between items-center px-6 py-4 bg-[#111] border-b border-white/10 z-20">
         <div className="flex items-center space-x-4">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-[0.4em] block">Design Studio</span>
-          {selectedMaterial && (
-            <div className="hidden lg:flex items-center space-x-2 bg-white/5 px-3 py-1 rounded-full border border-white/10 text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-gray-400">Material:</span>
-              <span className="font-semibold text-white">{selectedMaterial.name}</span>
-            </div>
-          )}
         </div>
         <div className="flex space-x-4 items-center">
-          <div className="flex bg-black/50 p-1 rounded-lg border border-white/10">
-            <button onClick={() => { setActiveSide('front'); setSelectedElementId(null); }} className={`px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors ${activeSide === 'front' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Front</button>
-            <button onClick={() => { setActiveSide('back'); setSelectedElementId(null); }} className={`px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors ${activeSide === 'back' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Back</button>
-          </div>
-          <div className="flex bg-black/50 p-1 rounded-lg border border-white/10">
-            <button onClick={() => handleOrientationChange('horizontal')} className={`p-1.5 rounded-md transition-colors ${orientation === 'horizontal' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Horizontal">
-              <RectangleHorizontal className="w-4 h-4" />
-            </button>
-            <button onClick={() => handleOrientationChange('vertical')} className={`p-1.5 rounded-md transition-colors ${orientation === 'vertical' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Vertical">
-              <RectangleVertical className="w-4 h-4" />
-            </button>
-          </div>
+          {productType !== 'board' && (
+            <div className="flex bg-black/50 p-1 rounded-lg border border-white/10">
+              <button onClick={() => { setActiveSide('front'); setSelectedElementId(null); }} className={`px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors ${activeSide === 'front' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Front</button>
+              <button onClick={() => { setActiveSide('back'); setSelectedElementId(null); }} className={`px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors ${activeSide === 'back' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Back</button>
+            </div>
+          )}
+          {productType !== 'board' && (
+            <div className="flex bg-black/50 p-1 rounded-lg border border-white/10">
+              <button onClick={() => handleOrientationChange('horizontal')} className={`p-1.5 rounded-md transition-colors ${orientation === 'horizontal' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Horizontal">
+                <RectangleHorizontal className="w-4 h-4" />
+              </button>
+              <button onClick={() => handleOrientationChange('vertical')} className={`p-1.5 rounded-md transition-colors ${orientation === 'vertical' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`} title="Vertical">
+                <RectangleVertical className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <button onClick={handle3DPreview} disabled={isPreviewGenerating} className="px-6 py-2 bg-[#2a2a2a] border border-white/10 text-white hover:bg-[#333] hover:border-white/30 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all flex items-center space-x-2">
+            {isPreviewGenerating ? (
+              <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              <Box className="w-3 h-3" />
+            )}
+            <span>360° Preview</span>
+          </button>
           <button onClick={handleSaveProjectClick} className="px-6 py-2 bg-[#1a1a1a] border border-white/10 text-white hover:text-white hover:border-white/30 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all flex items-center space-x-2">
             {isSaving ? (
               <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -998,7 +1065,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         <div className="w-[80px] bg-[#111] flex flex-col items-center py-6 border-r border-white/10 space-y-2 z-20 shrink-0">
           {[
             { id: 'templates', icon: LayoutTemplate, label: 'Templates' },
-            { id: 'material', icon: Layers, label: 'Material' },
+            { id: 'material', icon: Layers, label: productType === 'board' ? 'Board Color' : 'Material' },
             { id: 'background', icon: Palette, label: 'Color' },
             { id: 'text', icon: Type, label: 'Text' },
             { id: 'elements', icon: Shapes, label: 'Elements' },
@@ -1022,60 +1089,97 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
             {activeTab === 'material' && (
               <div className="animate-in fade-in slide-in-from-left-4">
-                <h3 className="text-lg font-serif text-white mb-1">Card Material</h3>
-                <p className="text-xs text-gray-400 mb-6">Choose your card texture and finish</p>
+                <h3 className="text-lg font-serif text-white mb-1">
+                  {productType === 'board' ? 'Board Color' : 'Card Material'}
+                </h3>
+                <p className="text-xs text-gray-400 mb-6">
+                  {productType === 'board' ? 'Choose your board color' : 'Choose your card texture and finish'}
+                </p>
 
-                {/* Filter Switcher */}
-                <div className="grid grid-cols-4 gap-1 p-1 bg-[#1a1a1a] rounded-xl border border-white/10 mb-6">
-                  {(['all', 'metal', 'plastic', 'wood'] as const).map(cat => (
+                {productType === 'board' ? (
+                  <div className="space-y-4">
                     <button
-                      key={cat}
-                      onClick={() => setMaterialCategoryFilter(cat)}
-                      className={`py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all capitalize ${materialCategoryFilter === cat ? 'bg-white text-black shadow-md' : 'text-gray-400 hover:text-white'}`}
+                      onClick={() => {
+                        setSelectedMaterialId('board-white');
+                        updateCurrentSide({ bgColor: '#ffffff' });
+                      }}
+                      className={`w-full text-left p-4 rounded-xl border transition-all relative overflow-hidden group ${selectedMaterialId === 'board-white' ? 'bg-white/10 border-white ring-1 ring-white/30' : 'bg-[#1a1a1a] border-white/5 hover:border-white/20 hover:bg-white/5'}`}
                     >
-                      {cat}
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="w-6 h-6 rounded-full bg-white border border-white/20"></div>
+                        <span className="text-sm font-bold text-white">White Board</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">Clean, bright white plastic display board.</p>
                     </button>
-                  ))}
-                </div>
+                    <button
+                      onClick={() => {
+                        setSelectedMaterialId('board-black');
+                        updateCurrentSide({ bgColor: '#151515' });
+                      }}
+                      className={`w-full text-left p-4 rounded-xl border transition-all relative overflow-hidden group ${selectedMaterialId === 'board-black' ? 'bg-white/10 border-white ring-1 ring-white/30' : 'bg-[#1a1a1a] border-white/5 hover:border-white/20 hover:bg-white/5'}`}
+                    >
+                      <div className="flex items-center space-x-3 mb-1">
+                        <div className="w-6 h-6 rounded-full bg-[#151515] border border-white/20"></div>
+                        <span className="text-sm font-bold text-white">Black Board</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">Sleek matte black plastic display board.</p>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Filter Switcher */}
+                    <div className="grid grid-cols-4 gap-1 p-1 bg-[#1a1a1a] rounded-xl border border-white/10 mb-6">
+                      {(['all', 'metal', 'plastic', 'wood'] as const).map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => setMaterialCategoryFilter(cat)}
+                          className={`py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all capitalize ${materialCategoryFilter === cat ? 'bg-white text-black shadow-md' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
 
-                {/* Material List */}
-                <div className="space-y-4">
-                  {MATERIALS.filter(m => materialCategoryFilter === 'all' || m.category === materialCategoryFilter).map(material => {
-                    const isSelected = selectedMaterialId === material.id;
-                    return (
-                      <button
-                        key={material.id}
-                        onClick={() => {
-                          setSelectedMaterialId(material.id);
-                          updateCurrentSide({ bgColor: material.bgColor });
-                        }}
-                        className={`w-full text-left p-4 rounded-xl border transition-all relative overflow-hidden group ${isSelected ? 'bg-white/10 border-white ring-1 ring-white/30' : 'bg-[#1a1a1a] border-white/5 hover:border-white/20 hover:bg-white/5'}`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2.5">
-                            <div className="w-6 h-6 rounded-full border border-white/20 shadow-md relative overflow-hidden shrink-0" style={{ background: material.previewBg }}>
-                              {material.sheenOverlay && (
-                                <div className="absolute inset-0 mix-blend-overlay opacity-80" style={{ background: material.sheenOverlay }}></div>
+                    {/* Material List */}
+                    <div className="space-y-4">
+                      {MATERIALS.filter(m => materialCategoryFilter === 'all' || m.category === materialCategoryFilter).map(material => {
+                        const isSelected = selectedMaterialId === material.id;
+                        return (
+                          <button
+                            key={material.id}
+                            onClick={() => {
+                              setSelectedMaterialId(material.id);
+                              updateCurrentSide({ bgColor: material.bgColor });
+                            }}
+                            className={`w-full text-left p-4 rounded-xl border transition-all relative overflow-hidden group ${isSelected ? 'bg-white/10 border-white ring-1 ring-white/30' : 'bg-[#1a1a1a] border-white/5 hover:border-white/20 hover:bg-white/5'}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2.5">
+                                <div className="w-6 h-6 rounded-full border border-white/20 shadow-md relative overflow-hidden shrink-0" style={{ background: material.previewBg }}>
+                                  {material.sheenOverlay && (
+                                    <div className="absolute inset-0 mix-blend-overlay opacity-80" style={{ background: material.sheenOverlay }}></div>
+                                  )}
+                                </div>
+                                <span className="text-sm font-bold text-white group-hover:text-white transition-colors">{material.name}</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-400 mb-3 leading-relaxed">{material.description}</p>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border capitalize ${material.badgeColor}`}>
+                                {material.category}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[10px] font-bold text-white flex items-center">
+                                  <Check className="w-3 h-3 mr-1 text-emerald-400" /> Selected
+                                </span>
                               )}
                             </div>
-                            <span className="text-sm font-bold text-white group-hover:text-white transition-colors">{material.name}</span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-400 mb-3 leading-relaxed">{material.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border capitalize ${material.badgeColor}`}>
-                            {material.category}
-                          </span>
-                          {isSelected && (
-                            <span className="text-[10px] font-bold text-white flex items-center">
-                              <Check className="w-3 h-3 mr-1 text-emerald-400" /> Selected
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1478,44 +1582,46 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           )}
 
           {/* Mini Preview of Inactive Side */}
-          <div
-            className={`absolute top-6 transition-all duration-300 z-30 group cursor-pointer border border-white/10 hover:border-white/30 rounded-xl overflow-hidden shadow-2xl bg-[#111] ${selectedElementId ? 'right-72' : 'right-6'}`}
-            onClick={(e) => { e.stopPropagation(); setActiveSide(activeSide === 'front' ? 'back' : 'front'); }}
-            style={{
-              width: orientation === 'horizontal' ? 160 : 100,
-              height: orientation === 'horizontal' ? 100 : 160
-            }}
-          >
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-              <span className="text-white text-[9px] font-bold uppercase tracking-widest bg-black/80 px-2 py-1 rounded relative z-10 whitespace-nowrap text-center leading-tight">
-                Switch to<br />{activeSide === 'front' ? 'Back' : 'Front'}
-              </span>
-            </div>
+          {productType !== 'board' && (
             <div
+              className={`absolute top-6 transition-all duration-300 z-30 group cursor-pointer border border-white/10 hover:border-white/30 rounded-xl overflow-hidden shadow-2xl bg-[#111] ${selectedElementId ? 'right-72' : 'right-6'}`}
+              onClick={(e) => { e.stopPropagation(); setActiveSide(activeSide === 'front' ? 'back' : 'front'); }}
               style={{
-                width: orientation === 'horizontal' ? 428 : 270,
-                height: orientation === 'horizontal' ? 270 : 428,
-                transform: `scale(${160 / (orientation === 'horizontal' ? 428 : 270)})`,
-                transformOrigin: 'top left',
-                backgroundColor: cardData[activeSide === 'front' ? 'back' : 'front'].bgColor
+                width: orientation === 'horizontal' ? 160 : 100,
+                height: orientation === 'horizontal' ? 100 : 160
               }}
-              className="relative pointer-events-none"
             >
-              {cardData[activeSide === 'front' ? 'back' : 'front'].elements.map(el => (
-                <DraggableElement
-                  key={`mini-${el.id}`}
-                  el={el}
-                  isSelected={false}
-                  onSelect={() => { }}
-                  onRemove={() => { }}
-                  onDrag={() => { }}
-                  isDrawMode={false}
-                  isEraser={false}
-                />
-              ))}
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+                <span className="text-white text-[9px] font-bold uppercase tracking-widest bg-black/80 px-2 py-1 rounded relative z-10 whitespace-nowrap text-center leading-tight">
+                  Switch to<br />{activeSide === 'front' ? 'Back' : 'Front'}
+                </span>
+              </div>
+              <div
+                style={{
+                  width: productType === 'board' ? 300 : (orientation === 'horizontal' ? 428 : 270),
+                  height: productType === 'board' ? 450 : (orientation === 'horizontal' ? 270 : 428),
+                  transform: `scale(${160 / (productType === 'board' ? 300 : (orientation === 'horizontal' ? 428 : 270))})`,
+                  transformOrigin: 'top left',
+                  backgroundColor: cardData[activeSide === 'front' ? 'back' : 'front'].bgColor
+                }}
+                className="relative pointer-events-none"
+              >
+                {cardData[activeSide === 'front' ? 'back' : 'front'].elements.map(el => (
+                  <DraggableElement
+                    key={`mini-${el.id}`}
+                    el={el}
+                    isSelected={false}
+                    onSelect={() => { }}
+                    onRemove={() => { }}
+                    onDrag={() => { }}
+                    isDrawMode={false}
+                    isEraser={false}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Zoom Wrapper */}
           <div style={{ transform: `scale(${zoom / 100})`, transition: 'transform 0.15s ease-out' }} className="flex items-center justify-center">
@@ -1526,16 +1632,16 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
               onMouseLeave={handleCardMouseLeave}
               className="relative shrink-0 perspective-1000 cursor-pointer"
               style={{
-                width: orientation === 'horizontal' ? '428px' : '270px',
-                height: orientation === 'horizontal' ? '270px' : '428px',
+                width: productType === 'board' ? '300px' : (orientation === 'horizontal' ? '428px' : '270px'),
+                height: productType === 'board' ? '450px' : (orientation === 'horizontal' ? '270px' : '428px'),
                 perspective: '1200px'
               }}
             >
               <motion.div
-                key={`${activeSide}-${orientation}`}
-                initial={{ opacity: 0, scale: 0.98 }}
+                key={isPreviewGenerating ? 'generating' : `${activeSide}-${orientation}`}
+                initial={isPreviewGenerating ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
+                transition={{ duration: isPreviewGenerating ? 0 : 0.25, ease: "easeOut" }}
                 className="absolute inset-0 rounded-2xl transition-all duration-300 z-10 overflow-hidden border border-white/10"
                 style={{
                   backgroundColor: currentSideState.bgColor,
@@ -1563,14 +1669,6 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                         style={{ background: selectedMaterial.sheenOverlay }}
                       />
                     )}
-                    {/* Dynamic Interactive Glare & Specular Reflection */}
-                    <div
-                      className="absolute inset-0 pointer-events-none z-10 transition-opacity duration-300"
-                      style={{
-                        background: `radial-gradient(circle at ${mousePos.x * 100}% ${mousePos.y * 100}%, rgba(255,255,255,${selectedMaterial.category === 'metal' ? 0.35 : selectedMaterial.category === 'wood' ? 0.22 : 0.28}) 0%, rgba(255,255,255,0) 65%)`,
-                        opacity: mousePos.active ? 1 : 0.15
-                      }}
-                    />
                   </>
                 )}
 
@@ -1792,6 +1890,17 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           </div>
         )}
       </AnimatePresence>
+
+      {/* 360 3D Preview Modal */}
+      <Preview3DModal
+        isOpen={isPreview3DOpen}
+        onClose={() => setIsPreview3DOpen(false)}
+        frontImage={activeSide === 'front' ? previewFrontImage : previewBackImage}
+        backImage={activeSide === 'front' ? previewBackImage : previewFrontImage}
+        productType={productType}
+        orientation={orientation}
+        boardColor={productType === 'board' ? (MATERIALS.find(m => m.id === selectedMaterialId)?.bgColor || '#111') : currentSideState.bgColor}
+      />
     </section>
   );
 }
