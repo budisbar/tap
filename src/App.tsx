@@ -10,6 +10,7 @@ import CustomQuote from './components/CustomQuote';
 import FAQ from './components/FAQ';
 import AuthModal from './components/AuthModal';
 import EcoFriendly from './components/EcoFriendly';
+import PrintingMethods from './components/PrintingMethods';
 import { db, User } from './lib/mockDb';
 
 const CardCustomizer = lazy(() => import('./components/CardCustomizer'));
@@ -61,6 +62,7 @@ function AppContent() {
                   <Products />
                   <WhyReviews />
                   <EcoFriendly />
+                  <PrintingMethods />
                   <CustomQuote />
                   <FAQ />
                   <Contact />

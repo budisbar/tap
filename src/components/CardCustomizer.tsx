@@ -1149,7 +1149,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                             key={material.id}
                             onClick={() => {
                               setSelectedMaterialId(material.id);
-                              updateCurrentSide({ bgColor: material.bgColor });
+                              setCardData(prev => ({
+                                front: { ...prev.front, bgColor: material.bgColor },
+                                back: { ...prev.back, bgColor: material.bgColor }
+                              }));
                             }}
                             className={`w-full text-left p-4 rounded-xl border transition-all relative overflow-hidden group ${isSelected ? 'bg-white/10 border-white ring-1 ring-white/30' : 'bg-[#1a1a1a] border-white/5 hover:border-white/20 hover:bg-white/5'}`}
                           >
