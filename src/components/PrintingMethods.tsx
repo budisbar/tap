@@ -11,40 +11,29 @@ const methods = [
       { name: 'Vinyl Printing', desc: 'High-quality vinyl wraps applied directly to the surface for vibrant, full-color designs.' },
       { name: 'Direct Printing', desc: 'UV-cured ink printed directly onto the plastic for a seamless, long-lasting matte finish.' }
     ],
-    image: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?auto=format&fit=crop&q=80&w=1000'
+    image: '/images/plastic_card.png'
   },
   {
-    id: 'wood',
+    id: 'wood-bamboo',
     num: '02',
-    title: 'WOOD',
-    description: 'Natural, elegant, and timeless. Our wooden products stand out with their unique grain patterns. We customize them using:',
+    title: 'BAMBOO & WOOD',
+    description: 'Natural, elegant, and sustainable. Our wooden and bamboo products stand out with their unique grain patterns. We customize them using:',
     options: [
       { name: 'Laser Engraving', desc: 'Precise, deep burning of your logo into the wood for a premium, tactile feel.' },
       { name: 'Vinyl Printing', desc: 'Colorful overlays that contrast beautifully against the natural wood texture.' }
     ],
-    image: '/images/wood-printing.jpg'
-  },
-  {
-    id: 'bamboo',
-    num: '03',
-    title: 'BAMBOO',
-    description: 'Eco-friendly and sustainable, bamboo offers a smooth, lightweight finish. Customization methods include:',
-    options: [
-      { name: 'Laser Engraving', desc: 'Creates a beautiful, contrasting burn mark that highlights the bamboo\'s natural fibers.' },
-      { name: 'Vinyl Printing', desc: 'Vibrant colors applied with precision to complement the light bamboo surface.' }
-    ],
-    image: 'https://images.unsplash.com/photo-1516049247604-09dc99cddb6e?auto=format&fit=crop&q=80&w=1000'
+    image: '/images/wood_card.png'
   },
   {
     id: 'metal',
-    num: '04',
+    num: '03',
     title: 'STAINLESS STEEL',
     description: 'The ultimate in luxury and durability. Our stainless steel products exude professionalism and class.',
     options: [
       { name: 'Laser Engraving', desc: 'Etches your design directly into the metal surface for a permanent, sleek silver/white finish.' },
       { name: 'Vinyl Printing', desc: 'Full-color designs carefully adhered to the metal for striking contrast.' }
     ],
-    image: '/images/metal-printing.jpg'
+    image: '/images/metal_card.png'
   }
 ];
 
@@ -55,15 +44,30 @@ export default function PrintingMethods() {
 
   return (
     <section className="py-32 bg-[#050505] relative overflow-hidden border-t border-white/5">
-      {/* Background decoration */}
+      {/* Background decoration - optimized for performance (no css blurs) */}
       <div className="absolute inset-0 pointer-events-none opacity-20">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-white/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] bg-white/5 rounded-full blur-[150px]" />
+        <div 
+          className="absolute top-0 right-1/4 w-96 h-96 rounded-full" 
+          style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)' }} 
+        />
+        <div 
+          className="absolute bottom-0 left-1/4 w-[500px] h-[500px] rounded-full" 
+          style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)' }} 
+        />
       </div>
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+        
+        {/* Section Title */}
+        <div className="mb-16 text-center">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-light text-white tracking-wide">
+            Printing Methods
+          </h2>
+          <div className="w-24 h-px bg-white/20 mx-auto mt-8"></div>
+        </div>
+
         {/* Navigation Tabs */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12 mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12 mb-20">
           {methods.map((method) => {
             const isActive = activeId === method.id;
             
@@ -86,43 +90,28 @@ export default function PrintingMethods() {
 
         {/* Content Area */}
         <div className="relative min-h-[500px]">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout">
             <motion.div
               key={activeId}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24 items-center"
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15, ease: "easeInOut" }}
+              className="max-w-4xl mx-auto"
             >
               {/* Text Info */}
-              <div className="lg:col-span-5 order-2 lg:order-1">
-                <p className="text-xl text-gray-300 leading-relaxed mb-10">
+              <div className="flex flex-col items-center">
+                <p className="text-xl text-gray-300 leading-relaxed mb-12 text-center">
                   {activeMethod.description}
                 </p>
                 
-                <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full">
                   {activeMethod.options.map((opt, idx) => (
-                    <div key={idx} className="relative pl-6 border-l-2 border-white/20">
-                      <h4 className="text-xl font-semibold text-white mb-2">{opt.name}</h4>
-                      <p className="text-gray-400 leading-relaxed">{opt.desc}</p>
+                    <div key={idx} className="relative p-8 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                      <h4 className="text-xl font-semibold text-white mb-4 text-center">{opt.name}</h4>
+                      <p className="text-gray-400 leading-relaxed text-center">{opt.desc}</p>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* Image */}
-              <div className="lg:col-span-7 order-1 lg:order-2">
-                <div className="relative w-full aspect-[4/3] lg:aspect-auto lg:h-[600px] rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                  {/* Subtle inner shadow/gradient for glassmorphism */}
-                  <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-3xl pointer-events-none z-10" />
-                  <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-white/10 z-10 pointer-events-none" />
-                  
-                  <img 
-                    src={activeMethod.image} 
-                    alt={`${activeMethod.title} printing methods`}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 hover:scale-105"
-                  />
                 </div>
               </div>
             </motion.div>
