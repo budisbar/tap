@@ -43,24 +43,22 @@ function createIco(pngBuffers) {
 
   const page = await browser.newPage();
 
-  // 1. Generate Favicon SVG
-  // Using 1:1 square ratio 100x100
-  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#141418" />
-      <stop offset="100%" stop-color="#050505" />
-    </linearGradient>
-  </defs>
-  <!-- Background badge with subtle rounded border -->
-  <rect x="2" y="2" width="96" height="96" rx="26" fill="url(#bg)" stroke="#27272a" stroke-width="2" />
-  <!-- Text Brand Mark with safe padding -->
-  <text x="50" y="57" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', Helvetica, sans-serif" font-weight="900" font-size="21" fill="#ffffff" letter-spacing="-0.8">tap<tspan fill="#a1a1aa" font-weight="700">&amp;</tspan>con</text>
+  // 1. Generate Favicon SVG with the 3-wave NFC symbol
+  // 1:1 square ratio 130x130, centered at (106.35, 80)
+  const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 130" width="100%" height="100%">
+  <!-- Navy background badge matching brand banner -->
+  <rect width="130" height="130" rx="34" fill="#142141" />
+  <!-- White 3-Wave NFC Logo -->
+  <g fill="#ffffff" transform="translate(24, 0)">
+    <path d="M 69,45 A 50,50 0 0,0 69,145 Z" transform="translate(-19, -15)" />
+    <path d="M 95.4,50 A 55,55 0 0,0 95.4,140 Z" transform="translate(-19, -15)" />
+    <path d="M 111.7,60 A 50,50 0 0,0 111.7,130 Z" transform="translate(-19, -15)" />
+  </g>
 </svg>`;
 
   fs.writeFileSync(path.join(__dirname, 'public', 'favicon.svg'), svgContent);
   fs.writeFileSync(path.join(__dirname, 'public', 'logo.svg'), svgContent);
-  console.log('Saved public/favicon.svg and updated public/logo.svg');
+  console.log('Saved public/favicon.svg and public/logo.svg with 3-wave NFC symbol');
 
   // 2. Generate PNG Favicons at various resolutions (16, 32, 48, 96, 180, 192, 512)
   const sizes = [16, 32, 48, 96, 180, 192, 512];
@@ -68,10 +66,7 @@ function createIco(pngBuffers) {
 
   for (const size of sizes) {
     await page.setViewport({ width: size, height: size, deviceScaleFactor: 1 });
-    
-    // Provide ~14% safe margin inside the squircle
-    const fontSize = size <= 32 ? Math.round(size * 0.28) : Math.round(size * 0.21);
-    const radius = Math.round(size * 0.24);
+    const radius = Math.round(size * 0.26);
 
     const badgeHtml = `
     <!DOCTYPE html>
@@ -83,28 +78,29 @@ function createIco(pngBuffers) {
         .badge {
           width: 100%;
           height: 100%;
-          background: radial-gradient(circle at 30% 30%, #17171c 0%, #050505 100%);
+          background: #142141;
           border-radius: ${radius}px;
-          border: ${Math.max(1, Math.round(size * 0.02))}px solid rgba(255,255,255,0.18);
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #ffffff;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
-          font-weight: 900;
-          font-size: ${fontSize}px;
-          letter-spacing: -${(size * 0.015).toFixed(1)}px;
-          user-select: none;
+          overflow: hidden;
         }
-        .amp {
-          color: #a1a1aa;
-          font-weight: 700;
-          margin: 0 ${Math.max(0.5, size * 0.01)}px;
+        svg {
+          width: 78%;
+          height: 78%;
         }
       </style>
     </head>
     <body>
-      <div class="badge">tap<span class="amp">&amp;</span>con</div>
+      <div class="badge">
+        <svg viewBox="46 18 122 122">
+          <g fill="#ffffff">
+            <path d="M 110,30 A 50,50 0 0,0 110,130 Z" />
+            <path d="M 136.4,35 A 55,55 0 0,0 136.4,125 Z" />
+            <path d="M 152.7,45 A 50,50 0 0,0 152.7,115 Z" />
+          </g>
+        </svg>
+      </div>
     </body>
     </html>
     `;
@@ -126,7 +122,7 @@ function createIco(pngBuffers) {
       fs.writeFileSync(path.join(__dirname, 'public', 'favicon-512x512.png'), buf);
       fs.writeFileSync(path.join(__dirname, 'public', 'android-chrome-512x512.png'), buf);
     }
-    console.log(`Generated PNG for ${size}x${size}`);
+    console.log(`Generated 3-wave PNG for ${size}x${size}`);
   }
 
   // 3. Generate multi-resolution favicon.ico containing 16x16, 32x32, 48x48
@@ -136,164 +132,107 @@ function createIco(pngBuffers) {
     { width: 48, height: 48, data: pngBuffers[48] }
   ]);
   fs.writeFileSync(path.join(__dirname, 'public', 'favicon.ico'), icoData);
-  console.log('Saved public/favicon.ico with 16x16, 32x32, 48x48 layers');
+  console.log('Saved public/favicon.ico with 3-wave NFC symbol');
 
-  // 4. Generate high-resolution OpenGraph sharing image (1200x630)
+  // 4. Generate high-resolution OpenGraph sharing banner (1200x630) using the brand banner aesthetic
   await page.setViewport({ width: 1200, height: 630, deviceScaleFactor: 1 });
   const ogHtml = `
   <!DOCTYPE html>
   <html>
   <head>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
         width: 1200px;
         height: 630px;
-        background: #050505;
-        font-family: 'Inter', -apple-system, sans-serif;
+        background: #142141;
+        font-family: 'Inter', system-ui, sans-serif;
         color: #ffffff;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding: 80px;
+        padding: 70px 80px;
         position: relative;
         overflow: hidden;
       }
       .bg-glow {
         position: absolute;
-        top: -150px;
+        top: -100px;
         right: -100px;
-        width: 600px;
-        height: 600px;
-        background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
-        pointer-events: none;
-      }
-      .bg-glow-2 {
-        position: absolute;
-        bottom: -200px;
-        left: -100px;
-        width: 700px;
-        height: 700px;
-        background: radial-gradient(circle, rgba(96,165,250,0.06) 0%, transparent 70%);
-        pointer-events: none;
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%);
       }
       .top-row {
         display: flex;
         align-items: center;
         gap: 16px;
-        z-index: 10;
       }
-      .badge-sm {
-        width: 64px;
-        height: 64px;
-        background: radial-gradient(circle at 30% 30%, #1a1a20 0%, #09090b 100%);
-        border: 2px solid rgba(255,255,255,0.2);
-        border-radius: 18px;
+      .domain-badge {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.6);
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 6px 16px;
+        border-radius: 9999px;
+      }
+      .center-content {
         display: flex;
         align-items: center;
-        justify-content: center;
-        font-size: 15px;
-        font-weight: 900;
-        letter-spacing: -0.8px;
+        gap: 60px;
       }
-      .badge-sm .amp { color: #a1a1aa; font-weight: 700; margin: 0 1px; }
-      .brand-name {
-        font-size: 26px;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        text-transform: uppercase;
+      .logo-svg {
+        width: 160px;
+        height: 160px;
+        flex-shrink: 0;
       }
-      .tagline-pill {
-        margin-left: auto;
-        padding: 8px 18px;
-        border-radius: 9999px;
-        border: 1px solid rgba(255,255,255,0.15);
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        color: #a1a1aa;
-        background: rgba(255,255,255,0.03);
-      }
-      .content {
-        z-index: 10;
-        max-width: 950px;
-      }
-      .slogan-title {
-        font-size: 56px;
+      .slogan-text {
+        font-size: 52px;
         font-weight: 800;
         line-height: 1.15;
-        letter-spacing: -1.5px;
-        margin-bottom: 20px;
-        background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-      }
-      .slogan-desc {
-        font-size: 24px;
-        color: #94a3b8;
-        font-weight: 400;
-        line-height: 1.5;
+        letter-spacing: -1px;
+        max-width: 780px;
       }
       .bottom-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        border-top: 1px solid rgba(255,255,255,0.1);
-        padding-top: 28px;
-        z-index: 10;
-      }
-      .features {
-        display: flex;
-        gap: 24px;
-        font-size: 15px;
-        color: #71717a;
-        font-weight: 500;
-      }
-      .features span {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .features span::before {
-        content: '•';
-        color: #a1a1aa;
-      }
-      .features span:first-child::before {
-        display: none;
-      }
-      .domain {
+        border-top: 1px solid rgba(255,255,255,0.15);
+        padding-top: 24px;
         font-size: 16px;
+        color: rgba(255,255,255,0.7);
+      }
+      .founded {
+        font-size: 14px;
         font-weight: 600;
-        color: #ffffff;
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
+        color: rgba(255,255,255,0.5);
       }
     </style>
   </head>
   <body>
     <div class="bg-glow"></div>
-    <div class="bg-glow-2"></div>
-
     <div class="top-row">
-      <div class="badge-sm">tap<span class="amp">&amp;</span>con</div>
-      <span class="brand-name">Tap&amp;Con</span>
-      <div class="tagline-pill">NFC Solutions</div>
+      <span class="domain-badge">tapncon.online</span>
     </div>
 
-    <div class="content">
-      <h1 class="slogan-title">The Future of B2B Interaction</h1>
-      <p class="slogan-desc">Instant NFC Reviews &amp; Connections. Bespoke smart hardware designed for modern businesses to collect 5-star reviews, share menus, and connect with customers effortlessly.</p>
+    <div class="center-content">
+      <svg class="logo-svg" viewBox="46 18 122 122">
+        <g fill="#ffffff">
+          <path d="M 110,30 A 50,50 0 0,0 110,130 Z" />
+          <path d="M 136.4,35 A 55,55 0 0,0 136.4,125 Z" />
+          <path d="M 152.7,45 A 50,50 0 0,0 152.7,115 Z" />
+        </g>
+      </svg>
+      <h1 class="slogan-text">Boost Reviews, Dominate Local Search, Effortlessly.</h1>
     </div>
 
     <div class="bottom-row">
-      <div class="features">
-        <span>Instant Google Reviews</span>
-        <span>Wi-Fi Access</span>
-        <span>Digital Menus</span>
-        <span>Eco-Friendly</span>
-      </div>
-      <div class="domain">tapncon.online</div>
+      <div>Instant Google Reviews &bull; NFC Business Hardware &bull; Digital Menus</div>
+      <div class="founded">Founded June 2026</div>
     </div>
   </body>
   </html>
@@ -302,8 +241,8 @@ function createIco(pngBuffers) {
   await page.setContent(ogHtml, { waitUntil: 'networkidle0' });
   const ogBuf = await page.screenshot({ type: 'png' });
   fs.writeFileSync(path.join(__dirname, 'public', 'og-image.png'), ogBuf);
-  console.log('Saved public/og-image.png (1200x630)');
+  console.log('Saved public/og-image.png with brand banner design');
 
   await browser.close();
-  console.log('All icons and previews generated successfully!');
+  console.log('Done generating all 3-wave logo assets!');
 })();
