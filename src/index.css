@@ -34,3 +34,19 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
+
+/* Global text selection for the dark aesthetic */
+::selection {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Contact section text selection: ensures selected text on the white background is stark white on black */
+#contact ::selection,
+#contact::selection,
+#contact *::selection,
+#contact input::selection,
+#contact textarea::selection {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}

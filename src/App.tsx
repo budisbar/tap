@@ -47,7 +47,7 @@ function AppContent() {
   }, [location, isHomePage]);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-200 selection:bg-white/20 selection:text-white relative">
+    <div className="min-h-screen bg-[#050505] text-gray-200 relative">
       <div className="fixed inset-0 pointer-events-none -z-10 transform-gpu" style={{ backgroundImage: 'radial-gradient(circle at top right, #1a1a1a 0%, #050505 60%)' }} />
 
       {/* The Main Content */}
