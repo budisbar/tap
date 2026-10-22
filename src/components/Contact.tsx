@@ -49,7 +49,7 @@ export default function Contact() {
   };
 
   return (
-    <section id="contact" className="py-24 bg-white text-black relative overflow-hidden">
+    <section id="contact" className="py-24 bg-white text-black relative overflow-hidden selection:bg-black selection:text-white">
       {/* Background Logo Watermark */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-[600px] aspect-square pointer-events-none select-none z-0 opacity-10 flex items-center justify-center">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="55 25 103 110" className="w-full h-full fill-black">
