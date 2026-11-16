@@ -54,7 +54,7 @@ function createIco(pngBuffers) {
     </style>
   </head>
   <body>
-    <svg viewBox="55 25 103 110">
+    <svg viewBox="51.5 25 110 110">
       <g fill="#16203D">
         <path d="M 110,30 A 50,50 0 0,0 110,130 Z" />
         <path d="M 136.4,35 A 55,55 0 0,0 136.4,125 Z" />
@@ -86,6 +86,7 @@ function createIco(pngBuffers) {
     } else if (size === 512) {
       fs.writeFileSync(path.join(__dirname, 'public', 'favicon-512x512.png'), buf);
       fs.writeFileSync(path.join(__dirname, 'public', 'android-chrome-512x512.png'), buf);
+      fs.writeFileSync(path.join(__dirname, 'public', 'logo.png'), buf);
     }
     console.log(`Generated logo for ${size}x${size}`);
   }

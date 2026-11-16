@@ -86,6 +86,10 @@ export default function Hero() {
           Master <span className="italic font-normal">Optimization</span> with One Tap.
         </motion.p>
 
+        <p className="sr-only">
+          Boost Reviews, Dominate Local Search, Effortlessly. Instant Google Reviews, NFC Business Hardware, and Digital Menus.
+        </p>
+
         {/* BUTTONS */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
