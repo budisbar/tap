@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Verified administrator account
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == 'tapncon.info@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    // users/{userId}/designs/{designId}: read and write only when the signed-in user's id equals userId
+    match /users/{userId}/designs/{designId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // orders/{orderId}: anyone can create, with field types and sizes validated. Only the admin account can read. Nobody can update or delete.
+    match /orders/{orderId} {
+      allow create: if request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 200
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() > 3
+                    && request.resource.data.email.size() <= 200
+                    && request.resource.data.quantity is int
+                    && request.resource.data.quantity >= 1
+                    && request.resource.data.quantity <= 100000
+                    && request.resource.data.material is string
+                    && request.resource.data.material.size() <= 100
+                    && (!('businessName' in request.resource.data) || (request.resource.data.businessName is string && request.resource.data.businessName.size() <= 200))
+                    && (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 50))
+                    && (!('notes' in request.resource.data) || (request.resource.data.notes is string && request.resource.data.notes.size() <= 2000))
+                    && (!('previewFront' in request.resource.data) || (request.resource.data.previewFront is string && request.resource.data.previewFront.size() <= 200000))
+                    && (!('previewBack' in request.resource.data) || (request.resource.data.previewBack is string && request.resource.data.previewBack.size() <= 200000));
+
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Everything else denied
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,5 +1,10 @@
 import { useRef, useEffect } from 'react';
 import { motion, useMotionValue } from 'motion/react';
+import {
+  getEffectiveElementColor,
+  isEngravedMaterial,
+} from './customizerData';
+import EngravedImage from './EngravedImage';
 
 export default function DraggableElement({
   el,
@@ -13,12 +18,18 @@ export default function DraggableElement({
   onRemove,
   setSnapGuides,
   orientation,
-  zoom
+  zoom,
+  material,
 }: any) {
   const x = useMotionValue(el.x);
   const y = useMotionValue(el.y);
   const nodeRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
+
+  const isEngraved = isEngravedMaterial(material);
+  const isWoodEngraved = material?.category === 'wood';
+  const effectiveColor = getEffectiveElementColor(el.color, material);
+  const effectiveOpacity = isWoodEngraved ? (el.opacity ?? 1) * 0.92 : (el.opacity ?? 1);
 
   useEffect(() => {
     x.set(el.x);
@@ -101,9 +112,10 @@ export default function DraggableElement({
         position: 'absolute',
         top: 0,
         left: 0,
-        color: el.color,
-        opacity: el.opacity ?? 1,
-        rotate: el.rotation || 0
+        color: effectiveColor,
+        opacity: effectiveOpacity,
+        rotate: el.rotation || 0,
+        mixBlendMode: isWoodEngraved ? 'multiply' : 'normal',
       }}
       className={`${!isDrawMode ? 'cursor-grab active:cursor-grabbing hover:border-white/30' : (isEraser ? 'cursor-crosshair' : 'pointer-events-none')} p-1 border ${isSelected && !isDrawMode ? 'border-indigo-400 border-dashed bg-white/5' : 'border-transparent'} rounded transition-colors`}
     >
@@ -122,6 +134,7 @@ export default function DraggableElement({
             textAlign: el.textAlign || 'left',
             letterSpacing: `${el.letterSpacing || 0}px`,
             textTransform: el.textTransform || 'none',
+            textShadow: isEngraved ? material?.engraveTextShadow : undefined,
             minWidth: '20px',
             minHeight: '20px'
           }}
@@ -129,19 +142,46 @@ export default function DraggableElement({
         />
       )}
       {el.type === 'icon' && IconComp && (
-        <div className="select-none">
+        <div className="select-none" style={{ filter: isEngraved ? material?.engraveFilter : undefined }}>
           <IconComp className="w-10 h-10" />
         </div>
       )}
       {el.type === 'image' && el.imageUrl && (
-        <img src={el.imageUrl} alt="Custom" style={{ width: el.width || 100, height: 'auto', pointerEvents: 'none' }} className="select-none" draggable={false} />
+        isEngraved && (material?.category === 'metal' || material?.category === 'wood') ? (
+          <EngravedImage
+            src={el.imageUrl}
+            alt={el.content || 'Custom card graphic'}
+            mode={material.category}
+            engraveColor={effectiveColor}
+            width={el.width || 100}
+            style={{ width: el.width || 100, height: 'auto', pointerEvents: 'none', filter: material?.engraveFilter }}
+            className="select-none"
+          />
+        ) : (
+          <img src={el.imageUrl} alt={el.content || 'Custom card graphic'} width={el.width || 100} height={el.width || 100} style={{ width: el.width || 100, height: 'auto', pointerEvents: 'none' }} className="select-none" draggable={false} />
+        )
       )}
       {el.type === 'shape' && (
-        <div style={{ width: el.width || 100, height: el.height || 100, backgroundColor: el.color, borderRadius: el.borderRadius || 0 }} className="select-none pointer-events-none" />
+        <div
+          style={{
+            width: el.width || 100,
+            height: el.height || 100,
+            backgroundColor: effectiveColor,
+            borderRadius: el.borderRadius || 0,
+            filter: isEngraved ? material?.engraveFilter : undefined,
+          }}
+          className="select-none pointer-events-none"
+        />
       )}
       {el.type === 'drawing' && el.pathData && (
-        <svg style={{ overflow: 'visible' }} className={isDrawMode && !isEraser ? "pointer-events-none" : ""}>
-          <path d={el.pathData} stroke={el.color} strokeWidth={el.strokeWidth || 4} strokeOpacity={el.drawTool === 'marker' ? 0.4 : 1} fill="none" strokeLinecap="round" strokeLinejoin="round" className={isDrawMode && isEraser ? "pointer-events-stroke" : ""} />
+        <svg
+          style={{
+            overflow: 'visible',
+            filter: isEngraved ? material?.engraveFilter : undefined,
+          }}
+          className={isDrawMode && !isEraser ? "pointer-events-none" : ""}
+        >
+          <path d={el.pathData} stroke={effectiveColor} strokeWidth={el.strokeWidth || 4} strokeOpacity={el.drawTool === 'marker' ? 0.4 : 1} fill="none" strokeLinecap="round" strokeLinejoin="round" className={isDrawMode && isEraser ? "pointer-events-stroke" : ""} />
         </svg>
       )}
     </motion.div>

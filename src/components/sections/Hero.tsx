@@ -1,17 +1,11 @@
 import { motion } from 'motion/react';
 import { SmartphoneNfc } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import MagneticButton from '../ui/MagneticButton';
 
 export default function Hero() {
-  const navigate = useNavigate();
-
   const scrollToContact = () => {
     document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  const handleDesignCard = () => {
-    navigate('/studio');
   };
 
   return (
@@ -30,8 +24,9 @@ export default function Hero() {
         animate={{ scale: 1 }}
         transition={{ duration: 1.5, ease: "easeOut" }}
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-[650px] aspect-square pointer-events-none select-none z-0 text-white flex items-center justify-center"
+        aria-hidden="true"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="55 25 103 110" className="w-full h-full fill-current">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="55 25 103 110" className="w-full h-full fill-current" aria-hidden="true">
           {/* Left Semicircle - Slides in from left */}
           <motion.g
             style={{ willChange: 'transform, opacity' }}
@@ -67,49 +62,36 @@ export default function Hero() {
       <div className="max-w-4xl mx-auto px-6 relative z-10 flex flex-col items-center text-center w-full">
 
         {/* BIG TITLE */}
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-7xl md:text-9xl font-black text-white tracking-tighter mb-4 lowercase"
-        >
+        <h1 className="text-7xl md:text-9xl font-black text-white tracking-tighter mb-4 lowercase">
           tap&amp;con
-        </motion.h1>
+        </h1>
 
         {/* HEADLINE */}
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="text-2xl md:text-4xl text-gray-300 font-light leading-relaxed mb-8 max-w-2xl"
-        >
-          Master <span className="italic font-normal">Optimization</span> with One Tap.
-        </motion.p>
-
-        <p className="sr-only">
-          Boost Reviews, Dominate Local Search, Effortlessly. Instant Google Reviews, NFC Business Hardware, and Digital Menus.
+        <p className="text-2xl md:text-4xl text-white font-light leading-relaxed mb-8 max-w-2xl text-center">
+          NFC Business Hardware &amp; More.
         </p>
 
         {/* BUTTONS */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex flex-col sm:flex-row items-center justify-center space-y-6 sm:space-y-0 sm:space-x-6"
-        >
-          <MagneticButton onClick={scrollToContact}>
-            <button
-              className="px-6 py-3 bg-white text-black font-semibold rounded-sm hover:bg-gray-200 transition-all cursor-pointer text-center text-base"
+        <div className="flex flex-col sm:flex-row items-center justify-center space-y-6 sm:space-y-0 sm:space-x-6">
+          <MagneticButton>
+            <a
+              href="#contact"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToContact();
+              }}
+              className="inline-block px-6 py-3 bg-white text-black font-semibold rounded-sm hover:bg-gray-200 transition-all cursor-pointer text-center text-base"
             >
               Contact Us
-            </button>
+            </a>
           </MagneticButton>
-          <MagneticButton onClick={handleDesignCard}>
-            <button
+          <MagneticButton>
+            <Link
+              to="/studio"
               className="w-44 h-28 bg-white text-black rounded-lg p-3 flex flex-col justify-between shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:bg-gray-100 hover:scale-105 transition-all cursor-pointer select-none text-left relative overflow-hidden group border border-black/10"
             >
               <div className="flex justify-end w-full">
-                <SmartphoneNfc className="w-4 h-4 text-black/50" />
+                <SmartphoneNfc className="w-4 h-4 text-black/50" aria-hidden="true" />
               </div>
               
               <div className="my-auto">
@@ -119,11 +101,9 @@ export default function Hero() {
               <div className="text-[8px] font-mono tracking-widest text-black/50 uppercase">
                 tap&amp;con
               </div>
-            </button>
+            </Link>
           </MagneticButton>
-        </motion.div>
-
-
+        </div>
 
       </div>
     </section>

@@ -17,16 +17,17 @@ export default function CustomQuote() {
             <p className="text-lg text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
               Need a tailored solution for your business? We offer custom NFC card designs, bulk ordering, and specialized integrations. Get in touch with us to discuss your specific requirements.
             </p>
-            <MagneticButton 
-              onClick={() => {
-                document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}
-            >
-              <button
+            <MagneticButton>
+              <a
+                href="#contact"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-200 text-black rounded-sm font-semibold transition-colors duration-200"
               >
                 Custom Quote
-              </button>
+              </a>
             </MagneticButton>
           </div>
         </motion.div>

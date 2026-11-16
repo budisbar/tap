@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User } from 'lucide-react';
-import { db } from '../../lib/mockDb';
-import { signInWithGoogle } from '../../lib/firebase';
+import { dataService } from '../../lib/dataService';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -25,14 +24,14 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
     try {
       if (isLogin) {
-        await db.signIn(email, password);
+        await dataService.signIn(email, password);
       } else {
-        await db.signUp(email, password, name);
+        await dataService.signUp(email, password, name);
       }
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.message || 'Authentication failed');
     } finally {
       setIsLoading(false);
     }
@@ -42,15 +41,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setError('');
     setIsLoading(true);
     try {
-      // 1. Authenticate with real Google Firebase
-      const credentials = await signInWithGoogle();
-      const user = credentials.user;
-
-      if (user.email) {
-        // 2. Sync Google user into database (signs in if exists, creates if new)
-        await db.signIn(user.email);
-      }
-
+      await dataService.signInWithGoogle();
       onSuccess();
       onClose();
     } catch (err: any) {

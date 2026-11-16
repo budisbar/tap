@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
 
-const faqs = [
+export const faqs = [
   {
     question: "How does the NFC card work?",
     answer: "Simply tap your card on any NFC-enabled smartphone to instantly share your contact details, social media links, or custom landing page. No app is required for the receiver."
@@ -52,18 +52,25 @@ export default function FAQ() {
               transition={{ duration: 0.3, delay: index * 0.1 }}
               className="border border-white/10 rounded-2xl overflow-hidden bg-white/5 transition-colors hover:bg-white/10"
             >
-              <button
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                className="w-full px-6 py-5 flex items-center justify-between text-left focus:outline-none cursor-pointer"
-              >
-                <span className="font-medium text-lg">{faq.question}</span>
-                <ChevronDown 
-                  className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${openIndex === index ? 'rotate-180' : ''}`} 
-                />
-              </button>
+              <h3 className="m-0">
+                <button
+                  type="button"
+                  onClick={() => setOpenIndex(openIndex === index ? null : index)}
+                  aria-expanded={openIndex === index}
+                  aria-controls={`faq-answer-${index}`}
+                  className="w-full px-6 py-5 flex items-center justify-between text-left focus:outline-none cursor-pointer"
+                >
+                  <span className="font-medium text-lg">{faq.question}</span>
+                  <ChevronDown 
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${openIndex === index ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+              </h3>
               <AnimatePresence>
                 {openIndex === index && (
                   <motion.div
+                    id={`faq-answer-${index}`}
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}

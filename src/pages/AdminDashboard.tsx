@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import Logo from '../components/layout/Logo';
 import { LayoutDashboard, Users, CreditCard, DollarSign, TrendingUp, TrendingDown, ArrowLeft, Server, Package, Lock, ChevronRight, Receipt, UsersRound, Plus } from 'lucide-react';
-import { db, User, CRMClient, CRMClientStatus } from '../lib/mockDb';
+import { db, User, CRMClient, CRMClientStatus } from '../lib/dataService';
 
 export default function AdminDashboard({ onExit }: { onExit: () => void }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -184,7 +184,7 @@ export default function AdminDashboard({ onExit }: { onExit: () => void }) {
                         <span>{metric.change}</span>
                       </div>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium mb-1">{metric.label}</h3>
+                    <h2 className="text-gray-500 text-sm font-medium mb-1">{metric.label}</h2>
                     <p className="text-3xl font-bold text-white tracking-tight">{metric.value}</p>
                   </div>
                 ))}
@@ -299,7 +299,7 @@ export default function AdminDashboard({ onExit }: { onExit: () => void }) {
                       <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600 mb-4 flex items-center justify-center text-xl font-bold text-white shadow-inner">
                         {client.name ? client.name.charAt(0).toUpperCase() : client.email.charAt(0).toUpperCase()}
                       </div>
-                      <h3 className="font-bold text-white text-lg">{client.name || 'Unnamed Client'}</h3>
+                      <h2 className="font-bold text-white text-lg">{client.name || 'Unnamed Client'}</h2>
                       <p className="text-sm text-gray-400 mb-4">{client.email}</p>
                       
                       <div className="w-full flex justify-between pt-4 border-t border-white/10 text-sm">
@@ -343,7 +343,7 @@ export default function AdminDashboard({ onExit }: { onExit: () => void }) {
                     <div key={client.id} className="bg-[#111] border border-white/10 rounded-2xl p-6 relative group hover:border-white/30 transition-colors">
                       <div className="flex justify-between items-start mb-4">
                         <div>
-                          <h3 className="font-bold text-white text-lg">{client.name}</h3>
+                          <h2 className="font-bold text-white text-lg">{client.name}</h2>
                           <p className="text-sm text-gray-400">{client.email}</p>
                         </div>
                         <select 

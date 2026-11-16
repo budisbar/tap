@@ -1,10 +1,7 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, UserCredential } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
-// ----------------------------------------------------------------------
-// IMPORTANT: Replace the empty strings below with your Firebase Config keys!
-// You can find these in your Firebase Console -> Project Settings -> General -> Your Apps
-// ----------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyCC8fnTa1GrgbOpj_ZXR9M5zp1mShZr3HU",
   authDomain: "tapncon.firebaseapp.com",
@@ -15,13 +12,12 @@ const firebaseConfig = {
   measurementId: "G-P0ZZ5J0E03"
 };
 
-// Initialize Firebase
-export const app = initializeApp(firebaseConfig);
+// Initialize Firebase safely
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const firestore = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async (): Promise<UserCredential> => {
   return signInWithPopup(auth, googleProvider);
 };
-
-

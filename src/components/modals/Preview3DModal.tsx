@@ -29,7 +29,7 @@ export default function Preview3DModal({
 
   useEffect(() => {
     let animationFrame: number;
-    
+
     const animate = () => {
       if (isRotating && !isDragging) {
         setRotationY((prev) => (prev + 0.3) % 360);
@@ -56,14 +56,14 @@ export default function Preview3DModal({
     if (!isDragging) return;
     const deltaX = e.clientX - startPos.x;
     const deltaY = e.clientY - startPos.y;
-    
+
     setRotationY((prev) => prev + deltaX * 0.5);
     // Limit rotationX to prevent flipping upside down completely
     setRotationX((prev) => {
       const newRot = prev - deltaY * 0.5;
       return Math.max(-80, Math.min(80, newRot));
     });
-    
+
     setStartPos({ x: e.clientX, y: e.clientY });
   };
 
@@ -91,12 +91,12 @@ export default function Preview3DModal({
         <div className="absolute top-8 left-1/2 -translate-x-1/2 z-[110] text-center pointer-events-none">
           <h2 className="text-2xl font-bold text-white mb-2">360° Preview</h2>
           <p className="text-white/50 text-sm flex items-center justify-center gap-2">
-            <RotateCcw className="w-4 h-4" /> 
+            <RotateCcw className="w-4 h-4" />
             Drag to rotate freely
           </p>
         </div>
 
-        <div 
+        <div
           className="w-full h-full flex items-center justify-center perspective-[1500px] select-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -117,11 +117,11 @@ export default function Preview3DModal({
               <>
                 {/* Front Face */}
                 <div className="absolute inset-0 shadow-2xl rounded-2xl overflow-hidden border border-white/20" style={{ backfaceVisibility: 'hidden', transform: 'translateZ(1px)' }}>
-                  <img src={frontImage} alt="Front" className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                  <img src={frontImage} alt="3D card front design preview" width={orientation === 'horizontal' ? 428 : 270} height={orientation === 'horizontal' ? 270 : 428} className="w-full h-full object-cover pointer-events-none" draggable={false} />
                 </div>
                 {/* Back Face */}
                 <div className="absolute inset-0 shadow-2xl rounded-2xl overflow-hidden border border-white/20" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg) translateZ(1px)' }}>
-                  <img src={backImage || frontImage} alt="Back" className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                  <img src={backImage || frontImage} alt="3D card back design preview" width={orientation === 'horizontal' ? 428 : 270} height={orientation === 'horizontal' ? 270 : 428} className="w-full h-full object-cover pointer-events-none" draggable={false} />
                 </div>
               </>
             ) : (
@@ -131,7 +131,7 @@ export default function Preview3DModal({
                 <div className="w-full h-full relative origin-bottom" style={{ transformStyle: 'preserve-3d', transform: 'rotateX(15deg)' }}>
                   {/* Front of the tilted face */}
                   <div className="absolute inset-0 shadow-2xl overflow-hidden rounded-t-sm" style={{ backfaceVisibility: 'hidden', transform: 'translateZ(1px)' }}>
-                    <img src={frontImage} alt="Front" className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                    <img src={frontImage} alt="3D NFC board front design preview" width={300} height={450} className="w-full h-full object-cover pointer-events-none" draggable={false} />
                   </div>
                   {/* Back of the tilted face (Support) */}
                   <div className="absolute inset-0 rounded-t-sm border border-white/5" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg) translateZ(1px)', backgroundColor: boardColor || '#151515' }}>
@@ -148,12 +148,12 @@ export default function Preview3DModal({
 
         {/* Action Bar */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-4 z-[110]">
-           <button 
-             onClick={() => setIsRotating(!isRotating)}
-             className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white text-sm font-semibold transition-all border border-white/10 flex items-center gap-2"
-           >
-             {isRotating ? 'Pause Rotation' : 'Auto Rotate'}
-           </button>
+          <button
+            onClick={() => setIsRotating(!isRotating)}
+            className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white text-sm font-semibold transition-all border border-white/10 flex items-center gap-2"
+          >
+            {isRotating ? 'Pause Rotation' : 'Auto Rotate'}
+          </button>
         </div>
       </motion.div>
     </AnimatePresence>

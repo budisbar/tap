@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, db } from '../lib/mockDb';
+import { User, dataService as db } from '../lib/dataService';
 import { User as UserIcon, Lock, LogOut, Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -10,7 +10,7 @@ interface UserAccountProps {
 
 export default function UserAccount({ user, onLogout }: UserAccountProps) {
   const [activeTab, setActiveTab] = useState<'profile'>('profile');
-  
+
   // Password change state
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -49,7 +49,7 @@ export default function UserAccount({ user, onLogout }: UserAccountProps) {
       setPasswordMessage({ type: 'error', text: 'Passwords do not match.' });
       return;
     }
-    
+
     if (newPassword.length < 6) {
       setPasswordMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
       return;
@@ -69,27 +69,27 @@ export default function UserAccount({ user, onLogout }: UserAccountProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white pt-24 px-6 pb-12">
+    <div className="min-h-screen bg-primary text-neutral pt-24 px-6 pb-12">
       <div className="max-w-5xl mx-auto">
         <h1 className="text-3xl font-serif mb-8">My Account</h1>
-        
+
         <div className="flex flex-col lg:flex-row gap-8">
-          
+
           {/* Sidebar */}
           <div className="w-full lg:w-64 flex-shrink-0">
-            <div className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 overflow-x-auto lg:overflow-visible pb-4 lg:pb-0 scrollbar-hide border-b lg:border-b-0 border-white/10 lg:border-r pr-0 lg:pr-6">
-              <button 
+            <div className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 overflow-x-auto lg:overflow-visible pb-4 lg:pb-0 scrollbar-hide border-b lg:border-b-0 border-neutral/15 lg:border-r pr-0 lg:pr-6">
+              <button
                 onClick={() => setActiveTab('profile')}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeTab === 'profile' ? 'bg-white text-black font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeTab === 'profile' ? 'bg-accent text-neutral font-bold' : 'text-muted hover:text-neutral hover:bg-surface'}`}
               >
                 <Shield className="w-4 h-4" />
                 <span>Profile & Security</span>
               </button>
 
             </div>
-            
+
             <div className="mt-8 hidden lg:block pr-6">
-              <button 
+              <button
                 onClick={handleLogout}
                 className="flex items-center space-x-3 px-4 py-3 rounded-xl w-full text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all font-medium"
               >
@@ -110,30 +110,30 @@ export default function UserAccount({ user, onLogout }: UserAccountProps) {
               {activeTab === 'profile' && (
                 <div className="space-y-8">
                   {/* Personal Info */}
-                  <div className="bg-[#111] border border-white/10 p-6 rounded-2xl">
+                  <div className="bg-surface border border-neutral/15 p-6 rounded-2xl">
                     <h2 className="text-xl font-medium mb-6 flex items-center space-x-2">
-                      <UserIcon className="w-5 h-5 text-gray-400" />
+                      <UserIcon className="w-5 h-5 text-accent" />
                       <span>Personal Information</span>
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <label className="block text-xs uppercase tracking-widest text-gray-500">Username</label>
+                          <label className="block text-xs uppercase tracking-widest text-muted">Username</label>
                           {!isEditingName ? (
-                            <button onClick={() => setIsEditingName(true)} className="text-xs text-gray-400 hover:text-white transition-colors">Edit</button>
+                            <button onClick={() => setIsEditingName(true)} className="text-xs text-accent hover:text-neutral transition-colors">Edit</button>
                           ) : (
                             <div className="flex items-center space-x-2">
-                              <button 
+                              <button
                                 onClick={handleSaveName}
                                 disabled={isSavingName || !userName.trim()}
-                                className="text-xs text-emerald-400 hover:text-emerald-300 font-bold transition-colors disabled:opacity-50"
+                                className="text-xs text-accent hover:text-neutral font-bold transition-colors disabled:opacity-50"
                               >
                                 {isSavingName ? 'Saving...' : 'Save'}
                               </button>
-                              <button 
+                              <button
                                 onClick={() => { setIsEditingName(false); setUserName(user.name || user.email.split('@')[0]); }}
                                 disabled={isSavingName}
-                                className="text-xs text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+                                className="text-xs text-muted hover:text-neutral transition-colors disabled:opacity-50"
                               >
                                 Cancel
                               </button>
@@ -147,17 +147,17 @@ export default function UserAccount({ user, onLogout }: UserAccountProps) {
                             onChange={(e) => setUserName(e.target.value)}
                             disabled={isSavingName}
                             autoFocus
-                            className="w-full px-4 py-3 bg-[#0a0a0a] rounded-xl text-white font-medium border border-white/30 focus:outline-none focus:border-white transition-colors"
+                            className="w-full px-4 py-3 bg-primary rounded-xl text-neutral font-medium border border-accent focus:outline-none transition-colors"
                           />
                         ) : (
-                          <div className="px-4 py-3 bg-[#0a0a0a] rounded-xl text-white font-medium border border-white/5 capitalize">
+                          <div className="px-4 py-3 bg-primary rounded-xl text-neutral font-medium border border-neutral/10 capitalize">
                             {user.name || user.email.split('@')[0]}
                           </div>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Email</label>
-                        <div className="px-4 py-3 bg-[#0a0a0a] rounded-xl text-white font-medium border border-white/5">
+                        <label className="block text-xs uppercase tracking-widest text-muted mb-2">Email</label>
+                        <div className="px-4 py-3 bg-primary rounded-xl text-neutral font-medium border border-neutral/10">
                           {user.email}
                         </div>
                       </div>
@@ -165,51 +165,51 @@ export default function UserAccount({ user, onLogout }: UserAccountProps) {
                   </div>
 
                   {/* Security / Password */}
-                  <div className="bg-[#111] border border-white/10 p-6 rounded-2xl">
+                  <div className="bg-surface border border-neutral/15 p-6 rounded-2xl">
                     <h2 className="text-xl font-medium mb-6 flex items-center space-x-2">
-                      <Lock className="w-5 h-5 text-gray-400" />
+                      <Lock className="w-5 h-5 text-accent" />
                       <span>Security</span>
                     </h2>
-                    
-                    {!user.password ? (
-                      <div className="bg-[#0a0a0a] p-4 rounded-xl border border-white/5">
-                        <p className="text-gray-400 text-sm">
+
+                    {user.isGoogleUser ? (
+                      <div className="bg-primary p-4 rounded-xl border border-neutral/10">
+                        <p className="text-muted text-sm">
                           You signed in with Google. Password changes are handled by your Google account settings.
                         </p>
                       </div>
                     ) : (
                       <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
                         <div>
-                          <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">New Password</label>
+                          <label className="block text-xs uppercase tracking-widest text-muted mb-2">New Password</label>
                           <input
                             type="password"
                             required
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white/30 transition-colors"
+                            className="w-full bg-primary border border-neutral/15 rounded-xl px-4 py-3 text-neutral focus:outline-none focus:border-accent transition-colors"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Confirm New Password</label>
+                          <label className="block text-xs uppercase tracking-widest text-muted mb-2">Confirm New Password</label>
                           <input
                             type="password"
                             required
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white/30 transition-colors"
+                            className="w-full bg-primary border border-neutral/15 rounded-xl px-4 py-3 text-neutral focus:outline-none focus:border-accent transition-colors"
                           />
                         </div>
-                        
+
                         {passwordMessage.text && (
                           <div className={`p-3 rounded-lg text-sm ${passwordMessage.type === 'error' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
                             {passwordMessage.text}
                           </div>
                         )}
-                        
+
                         <button
                           type="submit"
                           disabled={isChangingPassword || !newPassword || !confirmPassword}
-                          className="px-6 py-2.5 bg-white text-black rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-6 py-2.5 bg-accent text-neutral rounded-xl font-bold text-sm hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isChangingPassword ? 'Updating...' : 'Update Password'}
                         </button>
@@ -220,10 +220,10 @@ export default function UserAccount({ user, onLogout }: UserAccountProps) {
               )}
 
             </motion.div>
-            
+
             {/* Mobile Logout */}
             <div className="mt-8 lg:hidden">
-              <button 
+              <button
                 onClick={handleLogout}
                 className="flex items-center justify-center space-x-3 px-4 py-3 rounded-xl w-full border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all font-medium"
               >
@@ -231,7 +231,7 @@ export default function UserAccount({ user, onLogout }: UserAccountProps) {
                 <span>Log Out</span>
               </button>
             </div>
-            
+
           </div>
         </div>
       </div>

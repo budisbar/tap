@@ -105,7 +105,7 @@ export default function PrintingMethods() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full">
                   {activeMethod.options.map((opt, idx) => (
                     <div key={idx} className="relative p-8 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-                      <h4 className="text-xl font-semibold text-white mb-4 text-center">{opt.name}</h4>
+                      <h3 className="text-xl font-semibold text-white mb-4 text-center">{opt.name}</h3>
                       <p className="text-gray-400 leading-relaxed text-center">{opt.desc}</p>
                     </div>
                   ))}

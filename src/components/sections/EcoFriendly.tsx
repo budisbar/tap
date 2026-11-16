@@ -41,11 +41,11 @@ export default function EcoFriendly() {
           
           <div className="grid grid-cols-2 md:grid-cols-2 gap-12 md:gap-24 border-t border-white/10 pt-8 w-full max-w-2xl">
             <div>
-              <h4 className="text-3xl font-bold text-white mb-2">10B+</h4>
+              <h3 className="text-3xl font-bold text-white mb-2">10B+</h3>
               <p className="text-sm text-gray-500 uppercase tracking-widest font-bold">Business Cards Printed Yearly</p>
             </div>
             <div>
-              <h4 className="text-3xl font-bold text-green-400 mb-2">88%</h4>
+              <h3 className="text-3xl font-bold text-green-400 mb-2">88%</h3>
               <p className="text-sm text-gray-500 uppercase tracking-widest font-bold">Are Thrown Away In a Week</p>
             </div>
           </div>
