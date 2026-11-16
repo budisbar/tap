@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const methods = [
   {
@@ -10,8 +10,7 @@ const methods = [
     options: [
       { name: 'Vinyl Printing', desc: 'High-quality vinyl wraps applied directly to the surface for vibrant, full-color designs.' },
       { name: 'Direct Printing', desc: 'UV-cured ink printed directly onto the plastic for a seamless, long-lasting matte finish.' }
-    ],
-    image: '/images/plastic_card.png'
+    ]
   },
   {
     id: 'wood-bamboo',
@@ -21,8 +20,7 @@ const methods = [
     options: [
       { name: 'Laser Engraving', desc: 'Precise, deep burning of your logo into the wood for a premium, tactile feel.' },
       { name: 'Vinyl Printing', desc: 'Colorful overlays that contrast beautifully against the natural wood texture.' }
-    ],
-    image: '/images/wood_card.png'
+    ]
   },
   {
     id: 'metal',
@@ -32,8 +30,7 @@ const methods = [
     options: [
       { name: 'Laser Engraving', desc: 'Etches your design directly into the metal surface for a permanent, sleek silver/white finish.' },
       { name: 'Vinyl Printing', desc: 'Full-color designs carefully adhered to the metal for striking contrast.' }
-    ],
-    image: '/images/metal_card.png'
+    ]
   }
 ];
 

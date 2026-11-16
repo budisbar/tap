@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, MouseEvent } from 'react';
 import { db, User, Project, ImageAsset } from '../lib/mockDb';
 import { Plus, Image as ImageIcon, Layout, Clock, Trash2, X, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -44,7 +44,7 @@ export default function ClientPortal({ user, onOpenProject, onNewProject }: Clie
     fetchData();
   }, [user.id]);
 
-  const handleDeleteProjectClick = (e: React.MouseEvent, projectId: string) => {
+  const handleDeleteProjectClick = (e: MouseEvent, projectId: string) => {
     e.stopPropagation();
     setProjectToDelete(projectId);
     setDeleteConfirmText('');
@@ -118,7 +118,7 @@ export default function ClientPortal({ user, onOpenProject, onNewProject }: Clie
                   <Layout className="w-12 h-12 text-gray-600 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold mb-2">No designs yet</h3>
                   <p className="text-gray-400 mb-6">Head over to the Design Studio to create your first card.</p>
-                  <button onClick={onNewProject} className="text-white underline hover:text-gray-300">Open Design Studio</button>
+                  <button onClick={() => setProductTypeModalOpen(true)} className="text-white underline hover:text-gray-300">Open Design Studio</button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

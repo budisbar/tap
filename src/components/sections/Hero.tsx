@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { SmartphoneNfc } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import MagneticButton from './MagneticButton';
+import MagneticButton from '../ui/MagneticButton';
 
 export default function Hero() {
   const navigate = useNavigate();

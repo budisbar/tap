@@ -1,22 +1,22 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import WhyReviews from './components/WhyReviews';
-import Products from './components/Products';
-import Contact from './components/Contact';
-import Footer from './components/Footer';
-import CustomQuote from './components/CustomQuote';
-import FAQ from './components/FAQ';
-import AuthModal from './components/AuthModal';
-import EcoFriendly from './components/EcoFriendly';
-import PrintingMethods from './components/PrintingMethods';
+import Navbar from './components/layout/Navbar';
+import Hero from './components/sections/Hero';
+import WhyReviews from './components/sections/WhyReviews';
+import Products from './components/sections/Products';
+import Contact from './components/sections/Contact';
+import Footer from './components/layout/Footer';
+import CustomQuote from './components/sections/CustomQuote';
+import FAQ from './components/sections/FAQ';
+import AuthModal from './components/modals/AuthModal';
+import EcoFriendly from './components/sections/EcoFriendly';
+import PrintingMethods from './components/sections/PrintingMethods';
 import { db, User } from './lib/mockDb';
 
-const CardCustomizer = lazy(() => import('./components/CardCustomizer'));
-const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
-const ClientPortal = lazy(() => import('./components/ClientPortal'));
-const UserAccount = lazy(() => import('./components/UserAccount'));
+const CardCustomizer = lazy(() => import('./components/studio/CardCustomizer'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const ClientPortal = lazy(() => import('./pages/ClientPortal'));
+const UserAccount = lazy(() => import('./pages/UserAccount'));
 
 // Loader component for Suspense
 const PageLoader = () => (
@@ -106,7 +106,7 @@ function AppContent() {
               <Route path="/admin" element={
                 <Suspense fallback={<PageLoader />}>
                   <div className="min-h-screen">
-                    <AdminDashboard />
+                    <AdminDashboard onExit={() => navigate('/')} />
                   </div>
                 </Suspense>
               } />

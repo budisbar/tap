@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import MagneticButton from './MagneticButton';
+import MagneticButton from '../ui/MagneticButton';
 
 export default function CustomQuote() {
   return (

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, User, Github } from 'lucide-react';
-import { db } from '../lib/mockDb';
-import { signInWithGoogle } from '../lib/firebase';
+import { X, Mail, Lock, User } from 'lucide-react';
+import { db } from '../../lib/mockDb';
+import { signInWithGoogle } from '../../lib/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;

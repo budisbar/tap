@@ -1,8 +1,8 @@
-import { SmartphoneNfc, Menu, X, User as UserIcon } from 'lucide-react';
+import { Menu, X, User as UserIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Logo from './Logo';
-import { User } from '../lib/mockDb';
+import { User } from '../../lib/mockDb';
 
 interface NavbarProps {
   user: User | null;

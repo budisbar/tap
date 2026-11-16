@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import MagneticButton from './MagneticButton';
-import { Calendar, MessageSquare, Building2, User, Mail, Loader2 } from 'lucide-react';
+import MagneticButton from '../ui/MagneticButton';
+import { Mail, Loader2 } from 'lucide-react';
 
 export default function Contact() {
   const [name, setName] = useState('');

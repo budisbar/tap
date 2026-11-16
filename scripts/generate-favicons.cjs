@@ -75,18 +75,18 @@ function createIco(pngBuffers) {
     pngBuffers[size] = buf;
 
     if (size === 48) {
-      fs.writeFileSync(path.join(__dirname, 'public', 'favicon-48x48.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'favicon-48x48.png'), buf);
     } else if (size === 96) {
-      fs.writeFileSync(path.join(__dirname, 'public', 'favicon-96x96.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'favicon-96x96.png'), buf);
     } else if (size === 180) {
-      fs.writeFileSync(path.join(__dirname, 'public', 'apple-touch-icon.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'apple-touch-icon.png'), buf);
     } else if (size === 192) {
-      fs.writeFileSync(path.join(__dirname, 'public', 'favicon-192x192.png'), buf);
-      fs.writeFileSync(path.join(__dirname, 'public', 'android-chrome-192x192.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'favicon-192x192.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'android-chrome-192x192.png'), buf);
     } else if (size === 512) {
-      fs.writeFileSync(path.join(__dirname, 'public', 'favicon-512x512.png'), buf);
-      fs.writeFileSync(path.join(__dirname, 'public', 'android-chrome-512x512.png'), buf);
-      fs.writeFileSync(path.join(__dirname, 'public', 'logo.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'favicon-512x512.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'android-chrome-512x512.png'), buf);
+      fs.writeFileSync(path.join(__dirname, '..', 'public', 'logo.png'), buf);
     }
     console.log(`Generated logo for ${size}x${size}`);
   }
@@ -96,7 +96,7 @@ function createIco(pngBuffers) {
     { width: 32, height: 32, data: pngBuffers[32] },
     { width: 48, height: 48, data: pngBuffers[48] }
   ]);
-  fs.writeFileSync(path.join(__dirname, 'public', 'favicon.ico'), icoData);
+  fs.writeFileSync(path.join(__dirname, '..', 'public', 'favicon.ico'), icoData);
   console.log('Saved public/favicon.ico with pure logo.png layers');
 
   await browser.close();

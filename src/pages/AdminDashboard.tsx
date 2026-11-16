@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import Logo from './Logo';
-import { LayoutDashboard, Users, CreditCard, DollarSign, TrendingUp, TrendingDown, ArrowLeft, Activity, Server, Package, Lock, ChevronRight, Receipt, UsersRound, Plus, Edit2 } from 'lucide-react';
+import Logo from '../components/layout/Logo';
+import { LayoutDashboard, Users, CreditCard, DollarSign, TrendingUp, TrendingDown, ArrowLeft, Server, Package, Lock, ChevronRight, Receipt, UsersRound, Plus } from 'lucide-react';
 import { db, User, CRMClient, CRMClientStatus } from '../lib/mockDb';
 
 export default function AdminDashboard({ onExit }: { onExit: () => void }) {
@@ -117,12 +117,6 @@ export default function AdminDashboard({ onExit }: { onExit: () => void }) {
     { category: 'AWS Hosting', amount: '$1,240', status: 'Paid', date: 'Oct 01' },
     { category: 'Stripe Fees', amount: '$450', status: 'Pending', date: 'Oct 05' },
     { category: 'Marketing', amount: '$2,100', status: 'Paid', date: 'Oct 12' },
-  ];
-
-  const clients = [
-    { name: 'Acme Corp', email: 'contact@acme.com', cards: 150, joined: 'Jan 2024' },
-    { name: 'TechStart Inc', email: 'hello@techstart.io', cards: 45, joined: 'Mar 2024' },
-    { name: 'Local Coffee Co.', email: 'admin@localcoffee.co', cards: 20, joined: 'Jun 2024' },
   ];
 
   const SidebarItem = ({ id, label, icon: Icon }: { id: typeof activeTab, label: string, icon: any }) => (
