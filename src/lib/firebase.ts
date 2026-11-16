@@ -2,7 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, UserCredential } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAI, GoogleAIBackend } from 'firebase/ai';
-import { initializeAppCheck, ReCaptchaV3Provider, AppCheck } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, AppCheck } from 'firebase/app-check';
 
 // ---------------------------------------------------------------------------
 // AI CONFIGURATION
@@ -12,9 +12,9 @@ export const GEMINI_MODEL_NAME = 'gemini-2.5-flash';
 
 // ---------------------------------------------------------------------------
 // APP CHECK CONFIGURATION
-// Replace with your Google reCAPTCHA v3 site key from the Firebase Console
+// Google reCAPTCHA Enterprise site key
 // ---------------------------------------------------------------------------
-export const RECAPTCHA_V3_SITE_KEY = '6Lc_9SMuAAAAAFHocQiSg5hgZ3l-WC8Dd8GWynAP';
+export const RECAPTCHA_ENTERPRISE_SITE_KEY = '6Lc_9SMuAAAAAFHocQiSg5hgZ3l-WC8Dd8GWynAP';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCC8fnTa1GrgbOpj_ZXR9M5zp1mShZr3HU",
@@ -45,9 +45,9 @@ if (typeof window !== 'undefined') {
   }
 
   try {
-    if (RECAPTCHA_V3_SITE_KEY) {
+    if (RECAPTCHA_ENTERPRISE_SITE_KEY) {
       appCheckInstance = initializeAppCheck(app, {
-        provider: new ReCaptchaV3Provider(RECAPTCHA_V3_SITE_KEY),
+        provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_ENTERPRISE_SITE_KEY),
         isTokenAutoRefreshEnabled: true,
       });
     }
