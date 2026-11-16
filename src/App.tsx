@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
+import PagePreloader, { NfcPulseLogo } from './components/layout/PagePreloader';
 import Hero from './components/sections/Hero';
 import WhyReviews from './components/sections/WhyReviews';
 import Products from './components/sections/Products';
@@ -21,7 +22,7 @@ const UserAccount = lazy(() => import('./pages/UserAccount'));
 // Loader component for Suspense
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-[#050505]">
-    <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+    <NfcPulseLogo />
   </div>
 );
 
@@ -48,6 +49,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 relative">
+      <PagePreloader />
       <div className="fixed inset-0 pointer-events-none -z-10 transform-gpu" style={{ backgroundImage: 'radial-gradient(circle at top right, #1a1a1a 0%, #050505 60%)' }} />
 
       {/* The Main Content */}
