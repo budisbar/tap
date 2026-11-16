@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Preview3DModal from '../modals/Preview3DModal';
+import AuthModal from '../modals/AuthModal';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   SmartphoneNfc, Type, Trash2, RectangleHorizontal, RectangleVertical, Image as ImageIcon, ArrowUp, ArrowDown,
   ChevronDown, ChevronRight, ChevronUp, Shapes, LayoutTemplate, Palette, PenTool, Eraser, Highlighter, Layers,
-  Check, X, Copy, Save, Box, Download, Undo2, Redo2
+  Check, X, Copy, Save, Box, Download, Undo2, Redo2, Sparkles, RefreshCw
 } from 'lucide-react';
-import { dataService as db, User as DbUser, ImageAsset } from '../../lib/dataService';
+import { dataService as db, User as DbUser, ImageAsset, DAILY_AI_LIMIT } from '../../lib/dataService';
+import { generateCardWithAi, AiCardPromptInput } from '../../lib/aiCardService';
+import AiCardGeneratorTab from './AiCardGeneratorTab';
 import { useSearchParams } from 'react-router-dom';
 import {
   CANVA_COLORS,
@@ -161,7 +164,12 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<ElementData | null>(null);
-  const [activeTab, setActiveTab] = useState<'templates' | 'material' | 'elements' | 'image' | 'background' | 'draw'>('templates');
+  const [activeTab, setActiveTab] = useState<'ai' | 'templates' | 'material' | 'elements' | 'image' | 'background' | 'draw'>('ai');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
+  const [isReplaceConfirmOpen, setIsReplaceConfirmOpen] = useState(false);
+  const [pendingAiInput, setPendingAiInput] = useState<AiCardPromptInput | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>(DEFAULT_PLASTIC_MATERIAL_ID);
   const [materialCategoryFilter, setMaterialCategoryFilter] = useState<'all' | 'metal' | 'plastic' | 'wood'>('all');
   const [isShapesOpen, setIsShapesOpen] = useState(false);
@@ -701,6 +709,44 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     await executeSave(saveProjectName);
   };
 
+  const executeAiCardGeneration = async (input: AiCardPromptInput) => {
+    if (!user) return;
+    setIsGeneratingAI(true);
+    try {
+      await db.incrementDailyAiUsage(user.id);
+      const result = await generateCardWithAi(input);
+      recordHistoryRef.current('ai-generation');
+      setCardData(result.cardData);
+      setSelectedMaterialId(result.selectedMaterialId);
+      setPlasticBgColors({
+        front: result.cardData.front.bgColor,
+        back: result.cardData.back.bgColor,
+      });
+      setHasGeneratedOnce(true);
+    } finally {
+      setIsGeneratingAI(false);
+      setPendingAiInput(null);
+    }
+  };
+
+  const handleAiGenerate = async (input: AiCardPromptInput) => {
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    const hasExistingDesign =
+      cardData.front.elements.length > 0 || cardData.back.elements.length > 0;
+
+    if (hasExistingDesign) {
+      setPendingAiInput(input);
+      setIsReplaceConfirmOpen(true);
+      return;
+    }
+
+    await executeAiCardGeneration(input);
+  };
+
   const moveZIndex = (id: string, direction: 'up' | 'down') => {
     const currentElements = [...currentSideState.elements].sort((a, b) => (a.z || 0) - (b.z || 0));
     const index = currentElements.findIndex(e => e.id === id);
@@ -964,6 +1010,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const effectiveZoom = effectiveScale * 100;
 
   const studioTabs = [
+    { id: 'ai', icon: Sparkles, label: 'AI' },
     { id: 'templates', icon: LayoutTemplate, label: 'Templates' },
     { id: 'material', icon: Layers, label: productType === 'board' ? 'Board Color' : 'Material' },
     { id: 'background', icon: Palette, label: 'Color' },
@@ -972,7 +1019,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     { id: 'draw', icon: PenTool, label: 'Draw' },
   ] as const;
 
-  const activeTabLabel = studioTabs.find((tab) => tab.id === activeTab)?.label || 'Tools';
+  const activeTabLabel =
+    activeTab === 'ai'
+      ? 'Create your card with AI'
+      : studioTabs.find((tab) => tab.id === activeTab)?.label || 'Tools';
 
   return (
     <section id="customizer" className="relative bg-[#050505] flex-1 h-full w-full overflow-hidden border-t border-white/10 flex flex-col select-none">
@@ -1262,6 +1312,23 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                       <input type="range" min="0" max="360" value={selectedElement.rotation || 0} onChange={(e) => updateElement(selectedElement.id, { rotation: parseInt(e.target.value) })} className="w-full accent-white" />
                     </div>
                   </div>
+                </div>
+              )}
+              {activeTab === 'ai' && (
+                <div className="animate-in fade-in slide-in-from-left-4">
+                  <h2 className="text-lg font-serif text-white mb-1">
+                    Create your card with AI
+                  </h2>
+                  <p className="text-xs text-gray-400 mb-6">
+                    Answer a few quick questions and Gemini will generate a custom layout for your NFC card.
+                  </p>
+                  <AiCardGeneratorTab
+                    user={user}
+                    onAuthClick={() => setIsAuthModalOpen(true)}
+                    onGenerate={handleAiGenerate}
+                    isGenerating={isGeneratingAI}
+                    hasGeneratedOnce={hasGeneratedOnce}
+                  />
                 </div>
               )}
               {activeTab === 'material' && (
@@ -1943,6 +2010,19 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                     )}
                   </div>
                 )}
+
+                {/* AI Generation Loading Overlay on Card */}
+                {isGeneratingAI && (
+                  <div className="absolute inset-0 z-[110] bg-black/75 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-200">
+                    <div className="w-9 h-9 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
+                    <span className="text-white font-semibold text-xs tracking-wider uppercase">
+                      AI is designing your card...
+                    </span>
+                    <span className="text-gray-400 text-[11px] mt-1">
+                      Generating structured layout and typography
+                    </span>
+                  </div>
+                )}
               </motion.div>
               </div>
             </div>
@@ -2063,6 +2143,63 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         defaultName={user?.name}
         defaultEmail={user?.email}
       />
+
+      {/* AI Replacement Confirmation Dialog */}
+      <AnimatePresence>
+        {isReplaceConfirmOpen && (
+          <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0a0a0a] border border-white/15 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative"
+            >
+              <h3 className="text-base font-bold text-white mb-2">
+                Replace your current design?
+              </h3>
+              <p className="text-xs text-gray-400 mb-6 leading-relaxed">
+                Generating a new card will replace the elements currently on the canvas. You can always use Undo to restore your previous design.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsReplaceConfirmOpen(false);
+                    setPendingAiInput(null);
+                  }}
+                  className="flex-1 py-2.5 bg-white/10 hover:bg-white/15 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsReplaceConfirmOpen(false);
+                    if (pendingAiInput) {
+                      await executeAiCardGeneration(pendingAiInput);
+                    }
+                  }}
+                  className="flex-1 py-2.5 bg-white hover:bg-gray-200 text-black rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Yes, replace
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Auth Modal for unauthenticated users clicking sign in */}
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={() => {
+            setIsAuthModalOpen(false);
+            setUser(db.getCurrentUser());
+          }}
+        />
+      )}
 
       {/* Start from Scratch Confirmation Dialog */}
       {isConfirmResetOpen && (

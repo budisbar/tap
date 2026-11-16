@@ -14,7 +14,8 @@ import {
   getDocs,
   setDoc,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  increment
 } from 'firebase/firestore';
 import { auth, firestore, signInWithGoogle as firebaseSignInWithGoogle } from './firebase';
 
@@ -340,6 +341,31 @@ class DataService {
     return snap.data() as OrderRequest;
   }
 
+  // --- AI DAILY USAGE LIMIT (10 generations per day) ---
+  async getDailyAiUsage(userId: string): Promise<number> {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const usageDocRef = doc(firestore, 'users', userId, 'usage', dateKey);
+    const snap = await getDoc(usageDocRef);
+    if (!snap.exists()) return 0;
+    return Number(snap.data()?.count) || 0;
+  }
+
+  async incrementDailyAiUsage(userId: string): Promise<number> {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const usageDocRef = doc(firestore, 'users', userId, 'usage', dateKey);
+    const snap = await getDoc(usageDocRef);
+    if (!snap.exists()) {
+      await setDoc(usageDocRef, { count: 1, date: dateKey, updatedAt: Date.now() });
+      return 1;
+    }
+    const current = Number(snap.data()?.count) || 0;
+    if (current >= DAILY_AI_LIMIT) {
+      throw new Error("You've reached today's limit. Come back tomorrow.");
+    }
+    await updateDoc(usageDocRef, { count: increment(1), updatedAt: Date.now() });
+    return current + 1;
+  }
+
   // --- IMAGES & ASSETS ---
   async saveImage(userId: string, dataUrl: string): Promise<ImageAsset> {
     // In-memory / temporary asset object so local uploads can be displayed immediately
@@ -379,6 +405,8 @@ class DataService {
 
   async updateCRMClientStatus(_id: string, _status: CRMClientStatus): Promise<void> {}
 }
+
+export const DAILY_AI_LIMIT = 10;
 
 export const dataService = new DataService();
 export const db = dataService;
