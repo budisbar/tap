@@ -96,23 +96,20 @@ export async function analyzeLogo(file: File): Promise<{
   });
 }
 
-// Structured JSON Schema for Gemini
+// Simplified Flat JSON Schema for Canvas Elements
 const elementSchema = {
   type: SchemaType.OBJECT,
   properties: {
     type: { type: SchemaType.STRING }, // "text", "shape", "icon", "image"
-    content: { type: SchemaType.STRING },
-    iconId: { type: SchemaType.STRING },
     x: { type: SchemaType.INTEGER },
     y: { type: SchemaType.INTEGER },
     width: { type: SchemaType.INTEGER },
     height: { type: SchemaType.INTEGER },
-    borderRadius: { type: SchemaType.INTEGER },
-    color: { type: SchemaType.STRING },
+    text: { type: SchemaType.STRING },
     fontSize: { type: SchemaType.INTEGER },
-    fontFamily: { type: SchemaType.STRING },
-    textAlign: { type: SchemaType.STRING },
-    textTransform: { type: SchemaType.STRING },
+    color: { type: SchemaType.STRING },
+    shape: { type: SchemaType.STRING }, // "rectangle", "circle", "pill"
+    rotation: { type: SchemaType.INTEGER },
   },
   required: ['type', 'x', 'y', 'color'],
 };
@@ -121,135 +118,95 @@ const cardLayoutSchema = {
   type: SchemaType.OBJECT,
   properties: {
     materialId: { type: SchemaType.STRING },
+    frontBg: { type: SchemaType.STRING },
+    backBg: { type: SchemaType.STRING },
     front: {
-      type: SchemaType.OBJECT,
-      properties: {
-        bgColor: { type: SchemaType.STRING },
-        elements: {
-          type: SchemaType.ARRAY,
-          items: elementSchema,
-        },
-      },
-      required: ['bgColor', 'elements'],
+      type: SchemaType.ARRAY,
+      items: elementSchema,
     },
     back: {
-      type: SchemaType.OBJECT,
-      properties: {
-        bgColor: { type: SchemaType.STRING },
-        elements: {
-          type: SchemaType.ARRAY,
-          items: elementSchema,
-        },
-      },
-      required: ['bgColor', 'elements'],
+      type: SchemaType.ARRAY,
+      items: elementSchema,
     },
   },
-  required: ['materialId', 'front', 'back'],
+  required: ['materialId', 'frontBg', 'backBg', 'front', 'back'],
 };
 
-export async function generateCardWithAi(input: AiCardPromptInput): Promise<GeneratedCardResult> {
+export async function generateCardWithAi(
+  input: AiCardPromptInput,
+  signal?: AbortSignal
+): Promise<GeneratedCardResult> {
   let model;
   try {
-    model = getGenerativeModel(ai, {
-      model: GEMINI_MODEL_NAME,
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: cardLayoutSchema,
-        temperature: 0.7,
+    model = getGenerativeModel(
+      ai,
+      {
+        model: GEMINI_MODEL_NAME,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: cardLayoutSchema,
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        },
       },
-    });
+      {
+        timeout: 30000,
+        signal,
+      }
+    );
   } catch (modelInitErr: any) {
     console.error('Failed to initialize Gemini model:', modelInitErr);
     const errCode = modelInitErr?.code || 'AI/model-init-failed';
     throw new Error(`${errCode}: ${modelInitErr?.message || String(modelInitErr)}`);
   }
 
-  const languagePrompt =
-    input.language === 'pt'
-      ? 'All customer-facing texts, call-to-actions, and instructions MUST be in natural, professional European/Brazilian Portuguese (e.g. "Toque para avaliar no Google", "Menu Digital", "Aproxime o seu telemóvel").'
-      : 'All customer-facing texts, call-to-actions, and instructions MUST be in natural, professional English (e.g. "Tap to review on Google", "Digital Menu", "Tap phone to connect").';
+  const langText = input.language === 'pt' ? 'Portuguese' : 'English';
+  const logoInfo = input.logo
+    ? `User logo provided (ratio ${input.logo.aspectRatio}, dominant colors: ${input.logo.dominantColors.join(', ')}). Include 1 image element on front.`
+    : 'No logo.';
 
-  let purposeGuidance = '';
-  if (input.cardPurpose === 'reviews') {
-    purposeGuidance = `
-PURPOSE: Google Reviews NFC Card.
-- FRONT: Focus on encouraging Google reviews. Prominent headline (e.g., "${input.language === 'pt' ? 'Gostou da sua experiência?' : 'Enjoyed your visit?'}") with subtext (e.g., "${input.language === 'pt' ? 'Toque para nos avaliar no Google' : 'Tap to review us on Google'}"), iconId: "review" (stars) and/or iconId: "contactless".
-- BACK: The business name "${input.businessName}" prominent, with supportive tagline and tap indicator (iconId: "contactless").`;
-  } else if (input.cardPurpose === 'business') {
-    purposeGuidance = `
-PURPOSE: Smart Contact Business Card.
-- FRONT: Clean brand identity with business name "${input.businessName}", tagline or business type "${input.businessType}", and optional logo slot.
-- BACK: Contact details:
-  ${input.contactInfo?.name ? `- Name: "${input.contactInfo.name}" (prominent)` : ''}
-  ${input.contactInfo?.role ? `- Role: "${input.contactInfo.role}"` : ''}
-  ${input.contactInfo?.phone ? `- Phone: "${input.contactInfo.phone}" (with iconId: "phone")` : ''}
-  ${input.contactInfo?.email ? `- Email: "${input.contactInfo.email}" (with iconId: "mail")` : ''}
-  ${input.contactInfo?.website ? `- Website: "${input.contactInfo.website}" (with iconId: "globe")` : ''}
-  - Tap contactless indicator icon (iconId: "contactless").`;
-  } else if (input.cardPurpose === 'menu') {
-    purposeGuidance = `
-PURPOSE: Digital Menu NFC Card.
-- FRONT: Large "Digital Menu" or "${input.language === 'pt' ? 'Menu Digital' : 'Digital Menu'}" title, business name "${input.businessName}", iconId: "menu" and iconId: "contactless".
-- BACK: Instructions: "${input.language === 'pt' ? 'Aproxime o telemóvel para ver o nosso menu e especiais' : 'Tap your phone to view our full menu and specials'}", iconId: "contactless".`;
-  } else {
-    purposeGuidance = `
-PURPOSE: Social Media & Follow NFC Card.
-- FRONT: "Follow Us" or "${input.language === 'pt' ? 'Siga-nos' : 'Follow Us'}", business name "${input.businessName}", social icons (iconId: "insta" or iconId: "share"), iconId: "contactless".
-- BACK: "${input.language === 'pt' ? 'Aproxime para conectar' : 'Tap phone to connect'}", handle / brand presence.`;
-  }
-
-  const logoDetails = input.logo
-    ? `The user has an uploaded logo with aspect ratio ${input.logo.aspectRatio} (width/height) and dominant colors: ${input.logo.dominantColors.join(', ')}. Include an element with type: "image" positioned appropriately (e.g. top-left or top-center of front side), with width between 60 and 90.`
-    : 'No logo provided. Rely cleanly on typography and layout.';
-
-  const materialGuidance =
-    input.material === 'metal'
-      ? `MATERIAL: Metal (Brushed Stainless Steel).
-- materialId MUST be "metal-silver".
-- bgColor MUST be "#c8d0d8".
-- All element colors MUST be laser-etched dark gray "#3a4048". NO other colors allowed.`
-      : input.material === 'wood'
-      ? `MATERIAL: Wood (Natural Bamboo).
-- materialId MUST be "wood-bamboo" or "wood-walnut".
-- bgColor MUST be "#d8b784" (for bamboo) or "#462816" (for walnut).
-- All element colors MUST be laser-burned dark brown "#2a1508" (for bamboo) or "#160a03" (for walnut). NO other colors allowed.`
-      : `MATERIAL: Plastic (PVC).
-- materialId can be "plastic-white" (with bgColor "#ffffff") or "plastic-black" (with bgColor "#18181b").
-- Preferred colors to weave into accents or text: ${input.preferredColors?.join(', ') || 'High-contrast black, white, and subtle accents'}.`;
+  const contactList = input.contactInfo
+    ? Object.entries(input.contactInfo)
+        .filter(([_, v]) => Boolean(v))
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ')
+    : '';
 
   const prompt = `
-You are an expert graphic designer for NFC physical smart cards.
-Design a high-quality physical smart card with dimensions exactly 428 pixels wide by 270 pixels tall.
-All elements must fit strictly within safe printable margins: x between 24 and 380, y between 20 and 240.
-
-BUSINESS INFORMATION:
-- Business Name: "${input.businessName}"
-- Business Type: "${input.businessType}"
-${input.customText ? `- Custom line of text to include: "${input.customText}"` : ''}
-
-${purposeGuidance}
-
-STYLE PREFERENCE:
-- Style: ${input.style} (simple = minimal whitespace; balanced = structured hierarchy; creative = bold typography and subtle shapes).
-${logoDetails}
-${materialGuidance}
-${languagePrompt}
-
-AVAILABLE ICON IDS:
-contactless, nfc, review, menu, wifi, coffee, shop, heart, user, map, phone, mail, globe, insta, fb, twitter, linkedin, check, link, share.
-
-AVAILABLE GOOGLE FONTS:
-"Inter", sans-serif; "Montserrat", sans-serif; "Playfair Display", serif; "Cinzel", serif; "Poppins", sans-serif; "Bebas Neue", sans-serif; "Caveat", cursive; "Lato", sans-serif; "Oswald", sans-serif.
-
-Return only the structured JSON layout adhering to the schema.
-`;
+Design an NFC card (428x270px). Safe margins: x: 24-380, y: 20-240.
+Business: "${input.businessName}" (${input.businessType})
+Card purpose: ${input.cardPurpose}
+${contactList ? `Contact: ${contactList}` : ''}
+${input.customText ? `Include text: "${input.customText}"` : ''}
+${logoInfo}
+Style: ${input.style}. Language: ${langText}.
+Material rules:
+- plastic: frontBg and backBg "#ffffff" or "#18181b", element colors from: ${input.preferredColors?.join(', ') || '#ffffff, #000000'}
+- metal: frontBg and backBg strictly "#c8d0d8", element colors strictly "#3a4048"
+- wood: frontBg and backBg strictly "#d8b784", element colors strictly "#2a1508"
+Icon names for text field: contactless, nfc, review, menu, phone, mail, globe, insta, share.
+Shapes for shape field: rectangle, circle, pill.
+Return only the JSON layout.
+`.trim();
 
   let response;
   try {
     response = await model.generateContent(prompt);
   } catch (genErr: any) {
-    console.error('Gemini generateContent error:', genErr);
+    if (signal?.aborted) {
+      if (signal.reason === 'TIMEOUT' || String(genErr).includes('taking too long') || String(genErr).includes('DEADLINE_EXCEEDED')) {
+        throw new Error('This is taking too long. Please try again.');
+      }
+      throw new Error('USER_CANCELLED');
+    }
     const rawMsg = genErr?.message || String(genErr);
+    if (rawMsg.includes('DEADLINE_EXCEEDED') || rawMsg.includes('timeout')) {
+      throw new Error('This is taking too long. Please try again.');
+    }
+    console.error('Gemini generateContent error:', genErr);
     const errCode = genErr?.code || genErr?.status || 'AI/fetch-error';
     throw new Error(`${errCode}: ${rawMsg}`);
   }
@@ -291,7 +248,7 @@ function sanitizeGeneratedLayout(raw: any, input: AiCardPromptInput): GeneratedC
   else if (input.material === 'wood') materialId = 'wood-bamboo';
   else if (raw.materialId && MATERIALS.some((m) => m.id === raw.materialId)) {
     materialId = raw.materialId;
-  } else if (raw.front?.bgColor === '#18181b' || raw.front?.bgColor === '#000000') {
+  } else if (raw.frontBg === '#18181b' || raw.frontBg === '#000000' || raw.front?.bgColor === '#18181b') {
     materialId = 'plastic-black';
   }
 
@@ -304,8 +261,8 @@ function sanitizeGeneratedLayout(raw: any, input: AiCardPromptInput): GeneratedC
     ? '#18181b'
     : '#ffffff';
 
-  const frontBg = isEngraved ? matchingMaterial.bgColor : raw.front?.bgColor || defaultBg;
-  const backBg = isEngraved ? matchingMaterial.bgColor : raw.back?.bgColor || defaultBg;
+  const frontBg = isEngraved ? matchingMaterial.bgColor : raw.frontBg || raw.front?.bgColor || defaultBg;
+  const backBg = isEngraved ? matchingMaterial.bgColor : raw.backBg || raw.back?.bgColor || defaultBg;
 
   const sanitizeElement = (el: any, index: number, side: 'front' | 'back'): ElementData => {
     const type: 'text' | 'shape' | 'icon' | 'image' = ['text', 'shape', 'icon', 'image'].includes(
@@ -335,21 +292,22 @@ function sanitizeGeneratedLayout(raw: any, input: AiCardPromptInput): GeneratedC
       width,
       height,
       color,
+      rotation: Number(el.rotation) || 0,
       opacity: 1,
     };
 
     if (type === 'text') {
-      cleanEl.content = String(el.content || input.businessName);
+      cleanEl.content = String(el.text || el.content || input.businessName);
       cleanEl.fontSize = Math.max(11, Math.min(Number(el.fontSize) || 16, 36));
-      cleanEl.fontFamily = el.fontFamily || 'var(--font-sans)';
-      cleanEl.textAlign = ['left', 'center', 'right'].includes(el.textAlign) ? el.textAlign : 'left';
-      cleanEl.textTransform = el.textTransform === 'uppercase' ? 'uppercase' : 'none';
+      cleanEl.fontFamily = 'var(--font-sans)';
+      cleanEl.textAlign = 'left';
+      cleanEl.textTransform = 'none';
     } else if (type === 'icon') {
-      cleanEl.iconId = el.iconId || 'contactless';
+      cleanEl.iconId = el.text || el.iconId || 'contactless';
       cleanEl.width = Math.max(20, Math.min(width, 60));
       cleanEl.height = cleanEl.width;
     } else if (type === 'shape') {
-      cleanEl.borderRadius = Number(el.borderRadius) || 0;
+      cleanEl.borderRadius = el.shape === 'circle' || el.shape === 'pill' ? 999 : Number(el.borderRadius) || 0;
     } else if (type === 'image') {
       if (input.logo?.dataUrl) {
         cleanEl.imageUrl = input.logo.dataUrl;
@@ -362,13 +320,20 @@ function sanitizeGeneratedLayout(raw: any, input: AiCardPromptInput): GeneratedC
     return cleanEl;
   };
 
-  const frontElements: ElementData[] = Array.isArray(raw.front?.elements)
-    ? raw.front.elements.map((el: any, i: number) => sanitizeElement(el, i, 'front'))
+  const rawFrontList = Array.isArray(raw.front)
+    ? raw.front
+    : Array.isArray(raw.front?.elements)
+    ? raw.front.elements
     : [];
 
-  const backElements: ElementData[] = Array.isArray(raw.back?.elements)
-    ? raw.back.elements.map((el: any, i: number) => sanitizeElement(el, i, 'back'))
+  const rawBackList = Array.isArray(raw.back)
+    ? raw.back
+    : Array.isArray(raw.back?.elements)
+    ? raw.back.elements
     : [];
+
+  const frontElements: ElementData[] = rawFrontList.map((el: any, i: number) => sanitizeElement(el, i, 'front'));
+  const backElements: ElementData[] = rawBackList.map((el: any, i: number) => sanitizeElement(el, i, 'back'));
 
   // If user provided a logo and AI didn't include an image element, add it to front side
   if (input.logo?.dataUrl && !frontElements.some((e) => e.type === 'image')) {

@@ -170,6 +170,30 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const [aiError, setAiError] = useState<{ friendly: string; debug?: string } | null>(null);
   const [isReplaceConfirmOpen, setIsReplaceConfirmOpen] = useState(false);
   const [pendingAiInput, setPendingAiInput] = useState<AiCardPromptInput | null>(null);
+  const aiAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Warn user if leaving page while AI generation is in progress
+  useEffect(() => {
+    if (!isGeneratingAI) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isGeneratingAI]);
+
+  const handleCancelAi = () => {
+    if (aiAbortControllerRef.current) {
+      aiAbortControllerRef.current.abort('CANCELLED');
+      aiAbortControllerRef.current = null;
+    }
+    setIsGeneratingAI(false);
+    setPendingAiInput(null);
+  };
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>(DEFAULT_PLASTIC_MATERIAL_ID);
   const [materialCategoryFilter, setMaterialCategoryFilter] = useState<'all' | 'metal' | 'plastic' | 'wood'>('all');
@@ -719,6 +743,14 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       return;
     }
 
+    const controller = new AbortController();
+    aiAbortControllerRef.current = controller;
+
+    // 30-second timeout per requirement
+    const timeoutId = setTimeout(() => {
+      controller.abort('TIMEOUT');
+    }, 30000);
+
     setIsGeneratingAI(true);
     setAiError(null);
 
@@ -737,8 +769,8 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         throw new Error(`QUOTA_EXCEEDED: You've reached today's limit of ${DAILY_AI_LIMIT} generations.`);
       }
 
-      // Step 2: The Gemini call, JSON parsing & validation
-      const result = await generateCardWithAi(input);
+      // Step 2: The Gemini call with 30s timeout and cancel signal
+      const result = await generateCardWithAi(input, controller.signal);
 
       // Step 3: Apply the generated layout to the canvas
       try {
@@ -755,18 +787,43 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         throw new Error(`CANVAS_APPLY_ERROR: Failed to update canvas (${applyErr?.message || String(applyErr)})`);
       }
 
-      // Step 4: Increment daily usage in Firestore
+      // Step 4: Increment daily usage in Firestore ONLY after successful generation & apply
       try {
         await db.incrementDailyAiUsage(user.id);
       } catch (incErr: any) {
         console.error('[Firestore Counter Increment Error]:', incErr);
-        // Do not discard the card if counter update failed
       }
     } catch (err: any) {
+      if (controller.signal.aborted) {
+        if (controller.signal.reason === 'TIMEOUT' || String(err?.message || err).includes('taking too long')) {
+          setAiError({
+            friendly: 'This is taking too long. Please try again.',
+            debug: 'TIMEOUT_30S: Generation exceeded the 30-second limit.',
+          });
+          return;
+        }
+        // User clicked cancel
+        setAiError(null);
+        return;
+      }
+
+      const rawMsg = err?.message || String(err || '');
+      if (rawMsg.includes('taking too long') || rawMsg.includes('DEADLINE_EXCEEDED')) {
+        setAiError({
+          friendly: 'This is taking too long. Please try again.',
+          debug: 'TIMEOUT_30S: Request timed out.',
+        });
+        return;
+      }
+
+      if (rawMsg === 'USER_CANCELLED') {
+        setAiError(null);
+        return;
+      }
+
       console.error('[AI Card Generation Full Error]:', err);
 
       let friendly = "We couldn't create your card. Please try again.";
-      const rawMsg = err?.message || String(err || '');
       const errCode = err?.code || err?.name || 'AI/generation-error';
 
       if (rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('busy')) {
@@ -778,6 +835,8 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       const debug = rawMsg.includes(':') ? rawMsg : `${errCode}: ${rawMsg}`;
       setAiError({ friendly, debug });
     } finally {
+      clearTimeout(timeoutId);
+      aiAbortControllerRef.current = null;
       setIsGeneratingAI(false);
       setPendingAiInput(null);
     }
@@ -1384,6 +1443,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                     user={user}
                     onAuthClick={() => setIsAuthModalOpen(true)}
                     onGenerate={handleAiGenerate}
+                    onCancel={handleCancelAi}
                     isGenerating={isGeneratingAI}
                     hasGeneratedOnce={hasGeneratedOnce}
                     aiError={aiError}
@@ -2074,14 +2134,18 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
                 {/* AI Generation Loading Overlay on Card */}
                 {isGeneratingAI && (
-                  <div className="absolute inset-0 z-[110] bg-black/75 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-200">
+                  <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-200">
                     <div className="w-9 h-9 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
                     <span className="text-white font-semibold text-xs tracking-wider uppercase">
-                      AI is designing your card...
+                      Creating your card... this takes a few seconds.
                     </span>
-                    <span className="text-gray-400 text-[11px] mt-1">
-                      Generating structured layout and typography
-                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCancelAi}
+                      className="mt-4 px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-xs font-medium transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 )}
               </motion.div>

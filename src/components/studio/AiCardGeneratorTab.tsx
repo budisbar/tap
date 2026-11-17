@@ -7,6 +7,7 @@ interface AiCardGeneratorTabProps {
   user: User | null;
   onAuthClick: () => void;
   onGenerate: (input: AiCardPromptInput) => Promise<void>;
+  onCancel?: () => void;
   isGenerating: boolean;
   hasGeneratedOnce: boolean;
   aiError?: { friendly: string; debug?: string } | null;
@@ -29,6 +30,7 @@ export default function AiCardGeneratorTab({
   user,
   onAuthClick,
   onGenerate,
+  onCancel,
   isGenerating,
   hasGeneratedOnce,
   aiError,
@@ -648,7 +650,7 @@ export default function AiCardGeneratorTab({
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Designing your card...</span>
+                <span>Creating your card...</span>
               </>
             ) : isLimitReached ? (
               <span>Limit reached for today</span>
@@ -659,6 +661,19 @@ export default function AiCardGeneratorTab({
               </>
             )}
           </button>
+
+          {/* Cancel button during active generation */}
+          {isGenerating && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-full mt-2.5 py-2.5 bg-white/5 hover:bg-red-500/10 hover:border-red-500/30 text-gray-300 hover:text-red-400 border border-white/15 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Cancel</span>
+            </button>
+          )}
+
           <p className="text-[11px] text-gray-500 text-center mt-2">
             You can edit everything afterwards.
           </p>
