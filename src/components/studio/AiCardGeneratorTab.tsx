@@ -58,7 +58,7 @@ export default function AiCardGeneratorTab({
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Style, Material, Colors, Text & Language
-  const [style, setStyle] = useState<'simple' | 'balanced' | 'creative'>('simple');
+  const [style, setStyle] = useState<'minimalist' | 'balanced' | 'creative'>('minimalist');
   const [material, setMaterial] = useState<'plastic' | 'metal' | 'wood'>('plastic');
   const [selectedColors, setSelectedColors] = useState<string[]>(['#ffffff', '#18181b']);
   const [customText, setCustomText] = useState('');
@@ -472,7 +472,7 @@ export default function AiCardGeneratorTab({
           </label>
           <div className="grid grid-cols-3 gap-1.5">
             {[
-              { id: 'simple', label: 'Simple' },
+              { id: 'minimalist', label: 'Minimalist' },
               { id: 'balanced', label: 'Balanced' },
               { id: 'creative', label: 'Creative' },
             ].map((s) => (
