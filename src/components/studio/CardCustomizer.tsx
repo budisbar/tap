@@ -167,7 +167,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const [activeTab, setActiveTab] = useState<'ai' | 'templates' | 'material' | 'elements' | 'image' | 'background' | 'draw'>('ai');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
-  const [aiError, setAiError] = useState<{ friendly: string; debug?: string } | null>(null);
+  const [aiError, setAiError] = useState<{ friendly: string } | null>(null);
   const [isReplaceConfirmOpen, setIsReplaceConfirmOpen] = useState(false);
   const [pendingAiInput, setPendingAiInput] = useState<AiCardPromptInput | null>(null);
   const aiAbortControllerRef = useRef<AbortController | null>(null);
@@ -193,6 +193,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     }
     setIsGeneratingAI(false);
     setPendingAiInput(null);
+    setAiError(null);
   };
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>(DEFAULT_PLASTIC_MATERIAL_ID);
@@ -737,9 +738,8 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const executeAiCardGeneration = async (input: AiCardPromptInput) => {
     if (!user) {
       const friendly = 'Please sign in to generate a card with AI.';
-      const debug = 'AUTH_REQUIRED: User must be signed in to create an AI card.';
-      setAiError({ friendly, debug });
-      console.error('[AI Card Generation]', debug);
+      setAiError({ friendly });
+      console.error('[AI Card Generation] User must be signed in to create an AI card.');
       return;
     }
 
@@ -761,12 +761,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         dailyUsage = await db.getDailyAiUsage(user.id);
       } catch (readErr: any) {
         console.error('[Firestore Counter Read Error]:', readErr);
-        const errCode = readErr?.code || 'firestore/read-failed';
-        throw new Error(`${errCode}: Could not check daily quota (${readErr?.message || String(readErr)})`);
+        throw new Error("We couldn't check your daily quota. Please try again.");
       }
 
       if (dailyUsage >= DAILY_AI_LIMIT) {
-        throw new Error(`QUOTA_EXCEEDED: You've reached today's limit of ${DAILY_AI_LIMIT} generations.`);
+        throw new Error("You've reached today's limit. Come back tomorrow.");
       }
 
       // Step 2: The Gemini call with 30s timeout and cancel signal
@@ -784,7 +783,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         setHasGeneratedOnce(true);
       } catch (applyErr: any) {
         console.error('[Canvas Apply Error]:', applyErr);
-        throw new Error(`CANVAS_APPLY_ERROR: Failed to update canvas (${applyErr?.message || String(applyErr)})`);
+        throw new Error("We couldn't create your card. Please try again.");
       }
 
       // Step 4: Increment daily usage in Firestore ONLY after successful generation & apply
@@ -798,7 +797,6 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         if (controller.signal.reason === 'TIMEOUT' || String(err?.message || err).includes('taking too long')) {
           setAiError({
             friendly: 'This is taking too long. Please try again.',
-            debug: 'TIMEOUT_30S: Generation exceeded the 30-second limit.',
           });
           return;
         }
@@ -811,7 +809,6 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       if (rawMsg.includes('taking too long') || rawMsg.includes('DEADLINE_EXCEEDED')) {
         setAiError({
           friendly: 'This is taking too long. Please try again.',
-          debug: 'TIMEOUT_30S: Request timed out.',
         });
         return;
       }
@@ -824,16 +821,23 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       console.error('[AI Card Generation Full Error]:', err);
 
       let friendly = "We couldn't create your card. Please try again.";
-      const errCode = err?.code || err?.name || 'AI/generation-error';
 
-      if (rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('busy')) {
-        friendly = 'The AI is busy right now. Please try again later.';
-      } else if (rawMsg.includes('QUOTA_EXCEEDED') || rawMsg.includes("today's limit")) {
+      if (
+        rawMsg.includes('busy right now') ||
+        rawMsg.includes('500') ||
+        rawMsg.includes('503') ||
+        rawMsg.includes('429') ||
+        rawMsg.includes('RESOURCE_EXHAUSTED') ||
+        rawMsg.includes('high demand') ||
+        rawMsg.includes('overloaded') ||
+        rawMsg.includes('UNAVAILABLE')
+      ) {
+        friendly = 'Our AI is very busy right now. Please try again in a minute.';
+      } else if (rawMsg.includes("today's limit")) {
         friendly = "You've reached today's limit. Come back tomorrow.";
       }
 
-      const debug = rawMsg.includes(':') ? rawMsg : `${errCode}: ${rawMsg}`;
-      setAiError({ friendly, debug });
+      setAiError({ friendly });
     } finally {
       clearTimeout(timeoutId);
       aiAbortControllerRef.current = null;
@@ -846,8 +850,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     setAiError(null);
     if (!user) {
       const friendly = 'Please sign in to generate a card with AI.';
-      const debug = 'AUTH_REQUIRED: User must be signed in to create an AI card.';
-      setAiError({ friendly, debug });
+      setAiError({ friendly });
       setIsAuthModalOpen(true);
       return;
     }

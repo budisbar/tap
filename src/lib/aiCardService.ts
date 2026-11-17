@@ -1,6 +1,45 @@
 import { getGenerativeModel, SchemaType, ThinkingLevel } from 'firebase/ai';
-import { ai, GEMINI_MODEL_NAME } from './firebase';
+import { ai, PRIMARY_GEMINI_MODEL, BACKUP_GEMINI_MODEL } from './firebase';
 import { CardState, ElementData, CardMaterial, MATERIALS } from '../components/studio/customizerData';
+
+export const PRIMARY_MODEL = PRIMARY_GEMINI_MODEL;
+export const BACKUP_MODEL = BACKUP_GEMINI_MODEL;
+
+function isHighDemandError(err: any): boolean {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return (
+    msg.includes('500') ||
+    msg.includes('503') ||
+    msg.includes('429') ||
+    msg.includes('high demand') ||
+    msg.includes('overloaded') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('resource exhausted') ||
+    msg.includes('unavailable') ||
+    msg.includes('busy')
+  );
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      return reject(new Error('USER_CANCELLED'));
+    }
+    const timer = setTimeout(() => {
+      resolve();
+    }, ms);
+    if (signal) {
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          reject(new Error('USER_CANCELLED'));
+        },
+        { once: true }
+      );
+    }
+  });
+}
 
 export interface AiCardPromptInput {
   businessName: string;
@@ -132,37 +171,62 @@ const cardLayoutSchema = {
   required: ['materialId', 'frontBg', 'backBg', 'front', 'back'],
 };
 
+async function callGeminiModel(
+  modelName: string,
+  prompt: string,
+  signal?: AbortSignal
+) {
+  let model = getGenerativeModel(
+    ai,
+    {
+      model: modelName,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: cardLayoutSchema,
+        temperature: 0.7,
+        maxOutputTokens: 2000,
+        thinkingConfig: {
+          thinkingLevel: ThinkingLevel.MINIMAL,
+        },
+      },
+    },
+    {
+      timeout: 30000,
+      signal,
+    }
+  );
+
+  try {
+    return await model.generateContent(prompt);
+  } catch (err: any) {
+    const rawMsg = String(err?.message || err || '');
+    if (rawMsg.includes('400') || rawMsg.includes('invalid argument') || rawMsg.includes('INVALID_ARGUMENT')) {
+      const fallbackModel = getGenerativeModel(
+        ai,
+        {
+          model: modelName,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: cardLayoutSchema,
+            temperature: 0.7,
+            maxOutputTokens: 2000,
+          },
+        },
+        {
+          timeout: 30000,
+          signal,
+        }
+      );
+      return await fallbackModel.generateContent(prompt);
+    }
+    throw err;
+  }
+}
+
 export async function generateCardWithAi(
   input: AiCardPromptInput,
   signal?: AbortSignal
 ): Promise<GeneratedCardResult> {
-  let model;
-  try {
-    model = getGenerativeModel(
-      ai,
-      {
-        model: GEMINI_MODEL_NAME,
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: cardLayoutSchema,
-          temperature: 0.7,
-          maxOutputTokens: 2000,
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.MINIMAL,
-          },
-        },
-      },
-      {
-        timeout: 30000,
-        signal,
-      }
-    );
-  } catch (modelInitErr: any) {
-    console.error('Failed to initialize Gemini model:', modelInitErr);
-    const errCode = modelInitErr?.code || 'AI/model-init-failed';
-    throw new Error(`${errCode}: ${modelInitErr?.message || String(modelInitErr)}`);
-  }
-
   const langText = input.language === 'pt' ? 'Portuguese' : 'English';
   const logoInfo = input.logo
     ? `User logo provided (ratio ${input.logo.aspectRatio}, dominant colors: ${input.logo.dominantColors.join(', ')}). Include 1 image element on front.`
@@ -192,53 +256,60 @@ Shapes for shape field: rectangle, circle, pill.
 Return only the JSON layout.
 `.trim();
 
-  let response;
-  try {
-    response = await model.generateContent(prompt);
-  } catch (genErr: any) {
+  let response: any = null;
+  let lastError: any = null;
+
+  // 1. Primary Model: Initial attempt + up to 2 retries on 500, 503, 429 / high demand
+  const retryDelays = [2000, 4000];
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    try {
+      if (signal?.aborted) throw new Error('USER_CANCELLED');
+      response = await callGeminiModel(PRIMARY_MODEL, prompt, signal);
+      lastError = null;
+      break;
+    } catch (err: any) {
+      lastError = err;
+      console.error(`[AI Generation] ${PRIMARY_MODEL} attempt ${attempt + 1} error:`, err);
+
+      if (signal?.aborted) {
+        if (signal.reason === 'TIMEOUT' || String(err).includes('taking too long') || String(err).includes('DEADLINE_EXCEEDED')) {
+          throw new Error('This is taking too long. Please try again.');
+        }
+        throw new Error('USER_CANCELLED');
+      }
+
+      if (attempt < 2 && isHighDemandError(err)) {
+        await sleep(retryDelays[attempt], signal);
+      } else {
+        break;
+      }
+    }
+  }
+
+  // 2. Backup Model: Try once if primary model failed
+  if (!response && BACKUP_MODEL) {
+    try {
+      if (signal?.aborted) throw new Error('USER_CANCELLED');
+      console.warn(`[AI Generation] Primary model failed. Attempting backup model: ${BACKUP_MODEL}`);
+      response = await callGeminiModel(BACKUP_MODEL, prompt, signal);
+      lastError = null;
+    } catch (backupErr: any) {
+      lastError = backupErr;
+      console.error(`[AI Generation] Backup model ${BACKUP_MODEL} error:`, backupErr);
+    }
+  }
+
+  if (!response) {
     if (signal?.aborted) {
-      if (signal.reason === 'TIMEOUT' || String(genErr).includes('taking too long') || String(genErr).includes('DEADLINE_EXCEEDED')) {
+      if (signal.reason === 'TIMEOUT' || String(lastError).includes('taking too long') || String(lastError).includes('DEADLINE_EXCEEDED')) {
         throw new Error('This is taking too long. Please try again.');
       }
       throw new Error('USER_CANCELLED');
     }
-    const rawMsg = genErr?.message || String(genErr);
-    if (rawMsg.includes('DEADLINE_EXCEEDED') || rawMsg.includes('timeout')) {
-      throw new Error('This is taking too long. Please try again.');
+    if (isHighDemandError(lastError)) {
+      throw new Error('Our AI is very busy right now. Please try again in a minute.');
     }
-
-    // If 400 Invalid Argument was returned, retry without thinkingConfig
-    if (rawMsg.includes('400') || rawMsg.includes('invalid argument') || rawMsg.includes('INVALID_ARGUMENT')) {
-      console.warn('Retrying Gemini generation without thinkingConfig due to 400 invalid argument:', rawMsg);
-      try {
-        const fallbackModel = getGenerativeModel(
-          ai,
-          {
-            model: GEMINI_MODEL_NAME,
-            generationConfig: {
-              responseMimeType: 'application/json',
-              responseSchema: cardLayoutSchema,
-              temperature: 0.7,
-              maxOutputTokens: 2000,
-            },
-          },
-          {
-            timeout: 30000,
-            signal,
-          }
-        );
-        response = await fallbackModel.generateContent(prompt);
-      } catch (retryErr: any) {
-        console.error('Fallback Gemini generateContent error:', retryErr);
-        const retryMsg = retryErr?.message || String(retryErr);
-        const errCode = retryErr?.code || retryErr?.status || 'AI/fetch-error';
-        throw new Error(`${errCode}: ${retryMsg}`);
-      }
-    } else {
-      console.error('Gemini generateContent error:', genErr);
-      const errCode = genErr?.code || genErr?.status || 'AI/fetch-error';
-      throw new Error(`${errCode}: ${rawMsg}`);
-    }
+    throw new Error("We couldn't create your card. Please try again.");
   }
 
   let text = '';
@@ -246,11 +317,11 @@ Return only the JSON layout.
     text = response.response.text();
   } catch (textErr: any) {
     console.error('Failed to extract text from Gemini response:', textErr);
-    throw new Error(`AI/empty-response: Could not read text from Gemini (${textErr?.message || String(textErr)})`);
+    throw new Error("We couldn't create your card. Please try again.");
   }
 
   if (!text) {
-    throw new Error('AI/empty-response: Gemini returned an empty response.');
+    throw new Error("We couldn't create your card. Please try again.");
   }
 
   let rawData: any;
@@ -258,7 +329,7 @@ Return only the JSON layout.
     rawData = JSON.parse(text);
   } catch (jsonErr: any) {
     console.error('Failed to parse Gemini response as JSON:', jsonErr, 'Raw text:', text);
-    throw new Error(`AI/json-parse-error: Malformed JSON output (${jsonErr?.message || String(jsonErr)})`);
+    throw new Error("We couldn't create your card. Please try again.");
   }
 
   // Validate and sanitize the generated card layout
@@ -267,7 +338,7 @@ Return only the JSON layout.
     return sanitized;
   } catch (valErr: any) {
     console.error('Layout sanitization error:', valErr);
-    throw new Error(`AI/layout-validation-error: Invalid layout structure (${valErr?.message || String(valErr)})`);
+    throw new Error("We couldn't create your card. Please try again.");
   }
 }
 

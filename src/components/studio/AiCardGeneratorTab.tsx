@@ -10,7 +10,7 @@ interface AiCardGeneratorTabProps {
   onCancel?: () => void;
   isGenerating: boolean;
   hasGeneratedOnce: boolean;
-  aiError?: { friendly: string; debug?: string } | null;
+  aiError?: { friendly: string } | null;
   onClearAiError?: () => void;
   isReplaceConfirmOpen?: boolean;
 }
@@ -67,7 +67,7 @@ export default function AiCardGeneratorTab({
   // Quota & UI State
   const [dailyUsage, setDailyUsage] = useState<number>(0);
   const [isLoadingQuota, setIsLoadingQuota] = useState(false);
-  const [localError, setLocalError] = useState<{ friendly: string; debug?: string } | null>(null);
+  const [localError, setLocalError] = useState<{ friendly: string } | null>(null);
 
   // Active error displayed to user
   const currentError = aiError || localError;
@@ -81,10 +81,8 @@ export default function AiCardGeneratorTab({
       setDailyUsage(usage);
     } catch (err: any) {
       console.error('[Daily AI Quota Fetch Error]:', err);
-      const errCode = err?.code || 'firestore/fetch-quota-error';
       setLocalError({
         friendly: 'Could not load your daily AI quota.',
-        debug: `${errCode}: ${err?.message || String(err)}`,
       });
     } finally {
       setIsLoadingQuota(false);
@@ -117,7 +115,6 @@ export default function AiCardGeneratorTab({
       console.error('Failed to read logo image:', err);
       setLocalError({
         friendly: 'Failed to read logo image.',
-        debug: err?.message || String(err),
       });
     } finally {
       setIsAnalyzingLogo(false);
@@ -151,79 +148,51 @@ export default function AiCardGeneratorTab({
 
     // Check 1: User authentication
     if (!user) {
-      const err = {
-        friendly: 'Please sign in to generate a card with AI.',
-        debug: 'AUTH_REQUIRED: You must be signed in to create an AI card.',
-      };
-      setLocalError(err);
-      console.error('[AI Generator Early Return]:', err.debug);
+      console.error('[AI Generator Early Return]: AUTH_REQUIRED - You must be signed in to create an AI card.');
+      setLocalError({ friendly: 'Please sign in to generate a card with AI.' });
       onAuthClick();
       return;
     }
 
     // Check 2: Quota loading
     if (isLoadingQuota) {
-      const err = {
-        friendly: 'Checking your daily generation limit. Please wait a moment...',
-        debug: 'QUOTA_LOADING: Daily counter is currently being fetched from Firestore.',
-      };
-      setLocalError(err);
-      console.error('[AI Generator Early Return]:', err.debug);
+      console.error('[AI Generator Early Return]: QUOTA_LOADING - Daily counter is currently being fetched from Firestore.');
+      setLocalError({ friendly: 'Checking your daily generation limit. Please wait a moment...' });
       return;
     }
 
     // Check 3: Daily limit
     if (isLimitReached) {
-      const err = {
-        friendly: "You've reached today's limit. Come back tomorrow.",
-        debug: `LIMIT_REACHED: Daily usage is ${dailyUsage} of ${DAILY_AI_LIMIT} generations.`,
-      };
-      setLocalError(err);
-      console.error('[AI Generator Early Return]:', err.debug);
+      console.error(`[AI Generator Early Return]: LIMIT_REACHED - Daily usage is ${dailyUsage} of ${DAILY_AI_LIMIT} generations.`);
+      setLocalError({ friendly: "You've reached today's limit. Come back tomorrow." });
       return;
     }
 
     // Check 4: Already generating
     if (isGenerating) {
-      const err = {
-        friendly: 'Card design is already generating. Please wait a moment...',
-        debug: 'IN_PROGRESS: A generation request is already actively running.',
-      };
-      setLocalError(err);
-      console.error('[AI Generator Early Return]:', err.debug);
+      console.error('[AI Generator Early Return]: IN_PROGRESS - A generation request is already actively running.');
+      setLocalError({ friendly: 'Card design is already generating. Please wait a moment...' });
       return;
     }
 
     // Check 5: Form validation - business name
     if (!businessName.trim()) {
-      const err = {
-        friendly: 'Please enter your business name.',
-        debug: 'FORM_INVALID: Missing required field "Business Name".',
-      };
-      setLocalError(err);
-      console.error('[AI Generator Early Return]:', err.debug);
+      console.error('[AI Generator Early Return]: FORM_INVALID - Missing required field "Business Name".');
+      setLocalError({ friendly: 'Please enter your business name.' });
       return;
     }
 
     // Check 6: Form validation - business type
     if (!businessType.trim()) {
-      const err = {
-        friendly: 'Please enter your type of business (e.g. Restaurant, Barbershop).',
-        debug: 'FORM_INVALID: Missing required field "Type of Business".',
-      };
-      setLocalError(err);
-      console.error('[AI Generator Early Return]:', err.debug);
+      console.error('[AI Generator Early Return]: FORM_INVALID - Missing required field "Type of Business".');
+      setLocalError({ friendly: 'Please enter your type of business (e.g. Restaurant, Barbershop).' });
       return;
     }
 
     // Check 7: Logo still analyzing
     if (isAnalyzingLogo) {
-      const err = {
-        friendly: 'Your logo is currently being analyzed. Please wait a moment...',
-        debug: 'LOGO_ANALYZING: Logo color and aspect ratio extraction in progress.',
-      };
-      setLocalError(err);
-      console.error('[AI Generator Early Return]:', err.debug);
+      console.error('[AI Generator Early Return]: LOGO_ANALYZING - Logo color and aspect ratio extraction in progress.');
+      setLocalError({ friendly: 'Your logo is currently being analyzed. Please wait a moment...' });
       return;
     }
 
@@ -261,15 +230,15 @@ export default function AiCardGeneratorTab({
     } catch (err: any) {
       console.error('[AI Generator Submit Error]:', err);
       const rawMsg = err?.message || String(err || '');
-      const errCode = err?.code || err?.name || 'AI/submit-error';
       let friendly = "We couldn't create your card. Please try again.";
-      if (rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('busy')) {
-        friendly = 'The AI is busy right now. Please try again later.';
+      if (rawMsg.includes('very busy') || rawMsg.includes('high demand') || rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('busy')) {
+        friendly = 'Our AI is very busy right now. Please try again in a minute.';
+      } else if (rawMsg.includes('taking too long') || rawMsg.includes('timeout')) {
+        friendly = 'This is taking too long. Please try again.';
       } else if (rawMsg.includes('LIMIT_REACHED') || rawMsg.includes("today's limit")) {
         friendly = "You've reached today's limit. Come back tomorrow.";
       }
-      const debug = rawMsg.includes(':') ? rawMsg : `${errCode}: ${rawMsg}`;
-      setLocalError({ friendly, debug });
+      setLocalError({ friendly });
     }
   };
 
@@ -318,18 +287,13 @@ export default function AiCardGeneratorTab({
         </div>
       )}
 
-      {/* Error Message with Real Debug Details */}
+      {/* Error Message */}
       {currentError && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl space-y-1.5">
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
           <div className="flex items-start space-x-2 text-xs text-red-400 leading-relaxed">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="font-semibold">{currentError.friendly}</span>
           </div>
-          {currentError.debug && (
-            <div className="text-[10px] text-gray-500 font-mono break-all pl-6">
-              {currentError.debug}
-            </div>
-          )}
         </div>
       )}
 

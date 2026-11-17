@@ -6,9 +6,11 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider, AppCheck } from 'fireb
 
 // ---------------------------------------------------------------------------
 // AI CONFIGURATION
-// Fastest stable Gemini Flash-Lite model on the Gemini Developer API free tier
+// Primary and backup Gemini models available on the free tier
 // ---------------------------------------------------------------------------
-export const GEMINI_MODEL_NAME = 'gemini-3.5-flash-lite';
+export const PRIMARY_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+export const BACKUP_GEMINI_MODEL = 'gemini-3.8-flash';
+export const GEMINI_MODEL_NAME = PRIMARY_GEMINI_MODEL;
 
 // ---------------------------------------------------------------------------
 // APP CHECK CONFIGURATION
