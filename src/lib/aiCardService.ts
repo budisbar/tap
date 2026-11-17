@@ -148,14 +148,21 @@ const cardLayoutSchema = {
 };
 
 export async function generateCardWithAi(input: AiCardPromptInput): Promise<GeneratedCardResult> {
-  const model = getGenerativeModel(ai, {
-    model: GEMINI_MODEL_NAME,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: cardLayoutSchema,
-      temperature: 0.7,
-    },
-  });
+  let model;
+  try {
+    model = getGenerativeModel(ai, {
+      model: GEMINI_MODEL_NAME,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: cardLayoutSchema,
+        temperature: 0.7,
+      },
+    });
+  } catch (modelInitErr: any) {
+    console.error('Failed to initialize Gemini model:', modelInitErr);
+    const errCode = modelInitErr?.code || 'AI/model-init-failed';
+    throw new Error(`${errCode}: ${modelInitErr?.message || String(modelInitErr)}`);
+  }
 
   const languagePrompt =
     input.language === 'pt'
@@ -237,25 +244,43 @@ AVAILABLE GOOGLE FONTS:
 Return only the structured JSON layout adhering to the schema.
 `;
 
+  let response;
   try {
-    const response = await model.generateContent(prompt);
-    const text = response.response.text();
-    if (!text) {
-      throw new Error("We couldn't create your card. Please try again.");
-    }
+    response = await model.generateContent(prompt);
+  } catch (genErr: any) {
+    console.error('Gemini generateContent error:', genErr);
+    const rawMsg = genErr?.message || String(genErr);
+    const errCode = genErr?.code || genErr?.status || 'AI/fetch-error';
+    throw new Error(`${errCode}: ${rawMsg}`);
+  }
 
-    const rawData = JSON.parse(text);
+  let text = '';
+  try {
+    text = response.response.text();
+  } catch (textErr: any) {
+    console.error('Failed to extract text from Gemini response:', textErr);
+    throw new Error(`AI/empty-response: Could not read text from Gemini (${textErr?.message || String(textErr)})`);
+  }
 
-    // Validate and sanitize the generated card layout
+  if (!text) {
+    throw new Error('AI/empty-response: Gemini returned an empty response.');
+  }
+
+  let rawData: any;
+  try {
+    rawData = JSON.parse(text);
+  } catch (jsonErr: any) {
+    console.error('Failed to parse Gemini response as JSON:', jsonErr, 'Raw text:', text);
+    throw new Error(`AI/json-parse-error: Malformed JSON output (${jsonErr?.message || String(jsonErr)})`);
+  }
+
+  // Validate and sanitize the generated card layout
+  try {
     const sanitized = sanitizeGeneratedLayout(rawData, input);
     return sanitized;
-  } catch (err: any) {
-    console.error('AI Generation error:', err);
-    const msg = String(err?.message || '');
-    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
-      throw new Error('The AI is busy right now. Please try again later.');
-    }
-    throw new Error("We couldn't create your card. Please try again.");
+  } catch (valErr: any) {
+    console.error('Layout sanitization error:', valErr);
+    throw new Error(`AI/layout-validation-error: Invalid layout structure (${valErr?.message || String(valErr)})`);
   }
 }
 

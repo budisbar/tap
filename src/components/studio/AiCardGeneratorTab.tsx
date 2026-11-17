@@ -9,6 +9,9 @@ interface AiCardGeneratorTabProps {
   onGenerate: (input: AiCardPromptInput) => Promise<void>;
   isGenerating: boolean;
   hasGeneratedOnce: boolean;
+  aiError?: { friendly: string; debug?: string } | null;
+  onClearAiError?: () => void;
+  isReplaceConfirmOpen?: boolean;
 }
 
 const PRESET_COLORS = [
@@ -28,6 +31,9 @@ export default function AiCardGeneratorTab({
   onGenerate,
   isGenerating,
   hasGeneratedOnce,
+  aiError,
+  onClearAiError,
+  isReplaceConfirmOpen,
 }: AiCardGeneratorTabProps) {
   // Form State
   const [businessName, setBusinessName] = useState('');
@@ -59,7 +65,10 @@ export default function AiCardGeneratorTab({
   // Quota & UI State
   const [dailyUsage, setDailyUsage] = useState<number>(0);
   const [isLoadingQuota, setIsLoadingQuota] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<{ friendly: string; debug?: string } | null>(null);
+
+  // Active error displayed to user
+  const currentError = aiError || localError;
 
   // Load Daily AI Quota
   const refreshQuota = async () => {
@@ -68,8 +77,13 @@ export default function AiCardGeneratorTab({
       setIsLoadingQuota(true);
       const usage = await dataService.getDailyAiUsage(user.id);
       setDailyUsage(usage);
-    } catch {
-      // ignore
+    } catch (err: any) {
+      console.error('[Daily AI Quota Fetch Error]:', err);
+      const errCode = err?.code || 'firestore/fetch-quota-error';
+      setLocalError({
+        friendly: 'Could not load your daily AI quota.',
+        debug: `${errCode}: ${err?.message || String(err)}`,
+      });
     } finally {
       setIsLoadingQuota(false);
     }
@@ -88,15 +102,21 @@ export default function AiCardGeneratorTab({
     if (!file) return;
 
     setIsAnalyzingLogo(true);
-    setErrorMessage(null);
+    setLocalError(null);
+    if (onClearAiError) onClearAiError();
+
     try {
       const analyzed = await analyzeLogo(file);
       setLogoFile(file);
       setLogoDataUrl(analyzed.dataUrl);
       setLogoAspectRatio(analyzed.aspectRatio);
       setLogoColors(analyzed.dominantColors);
-    } catch {
-      setErrorMessage('Failed to read logo image.');
+    } catch (err: any) {
+      console.error('Failed to read logo image:', err);
+      setLocalError({
+        friendly: 'Failed to read logo image.',
+        debug: err?.message || String(err),
+      });
     } finally {
       setIsAnalyzingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = '';
@@ -124,16 +144,86 @@ export default function AiCardGeneratorTab({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!businessName.trim() || !businessType.trim()) {
-      setErrorMessage('Please fill in the business name and type.');
-      return;
-    }
-    if (isLimitReached) {
-      setErrorMessage("You've reached today's limit. Come back tomorrow.");
+    setLocalError(null);
+    if (onClearAiError) onClearAiError();
+
+    // Check 1: User authentication
+    if (!user) {
+      const err = {
+        friendly: 'Please sign in to generate a card with AI.',
+        debug: 'AUTH_REQUIRED: You must be signed in to create an AI card.',
+      };
+      setLocalError(err);
+      console.error('[AI Generator Early Return]:', err.debug);
+      onAuthClick();
       return;
     }
 
-    setErrorMessage(null);
+    // Check 2: Quota loading
+    if (isLoadingQuota) {
+      const err = {
+        friendly: 'Checking your daily generation limit. Please wait a moment...',
+        debug: 'QUOTA_LOADING: Daily counter is currently being fetched from Firestore.',
+      };
+      setLocalError(err);
+      console.error('[AI Generator Early Return]:', err.debug);
+      return;
+    }
+
+    // Check 3: Daily limit
+    if (isLimitReached) {
+      const err = {
+        friendly: "You've reached today's limit. Come back tomorrow.",
+        debug: `LIMIT_REACHED: Daily usage is ${dailyUsage} of ${DAILY_AI_LIMIT} generations.`,
+      };
+      setLocalError(err);
+      console.error('[AI Generator Early Return]:', err.debug);
+      return;
+    }
+
+    // Check 4: Already generating
+    if (isGenerating) {
+      const err = {
+        friendly: 'Card design is already generating. Please wait a moment...',
+        debug: 'IN_PROGRESS: A generation request is already actively running.',
+      };
+      setLocalError(err);
+      console.error('[AI Generator Early Return]:', err.debug);
+      return;
+    }
+
+    // Check 5: Form validation - business name
+    if (!businessName.trim()) {
+      const err = {
+        friendly: 'Please enter your business name.',
+        debug: 'FORM_INVALID: Missing required field "Business Name".',
+      };
+      setLocalError(err);
+      console.error('[AI Generator Early Return]:', err.debug);
+      return;
+    }
+
+    // Check 6: Form validation - business type
+    if (!businessType.trim()) {
+      const err = {
+        friendly: 'Please enter your type of business (e.g. Restaurant, Barbershop).',
+        debug: 'FORM_INVALID: Missing required field "Type of Business".',
+      };
+      setLocalError(err);
+      console.error('[AI Generator Early Return]:', err.debug);
+      return;
+    }
+
+    // Check 7: Logo still analyzing
+    if (isAnalyzingLogo) {
+      const err = {
+        friendly: 'Your logo is currently being analyzed. Please wait a moment...',
+        debug: 'LOGO_ANALYZING: Logo color and aspect ratio extraction in progress.',
+      };
+      setLocalError(err);
+      console.error('[AI Generator Early Return]:', err.debug);
+      return;
+    }
 
     const input: AiCardPromptInput = {
       businessName: businessName.trim(),
@@ -167,7 +257,17 @@ export default function AiCardGeneratorTab({
       await onGenerate(input);
       await refreshQuota();
     } catch (err: any) {
-      setErrorMessage(err?.message || "We couldn't create your card. Please try again.");
+      console.error('[AI Generator Submit Error]:', err);
+      const rawMsg = err?.message || String(err || '');
+      const errCode = err?.code || err?.name || 'AI/submit-error';
+      let friendly = "We couldn't create your card. Please try again.";
+      if (rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('busy')) {
+        friendly = 'The AI is busy right now. Please try again later.';
+      } else if (rawMsg.includes('LIMIT_REACHED') || rawMsg.includes("today's limit")) {
+        friendly = "You've reached today's limit. Come back tomorrow.";
+      }
+      const debug = rawMsg.includes(':') ? rawMsg : `${errCode}: ${rawMsg}`;
+      setLocalError({ friendly, debug });
     }
   };
 
@@ -208,10 +308,26 @@ export default function AiCardGeneratorTab({
         </span>
       </div>
 
-      {errorMessage && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start space-x-2 text-xs text-red-400 leading-relaxed">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{errorMessage}</span>
+      {/* Replacement confirmation alert */}
+      {isReplaceConfirmOpen && (
+        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-start space-x-2 text-xs text-blue-400 leading-relaxed">
+          <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>Please confirm in the modal to replace your current card design.</span>
+        </div>
+      )}
+
+      {/* Error Message with Real Debug Details */}
+      {currentError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl space-y-1.5">
+          <div className="flex items-start space-x-2 text-xs text-red-400 leading-relaxed">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="font-semibold">{currentError.friendly}</span>
+          </div>
+          {currentError.debug && (
+            <div className="text-[10px] text-gray-500 font-mono break-all pl-6">
+              {currentError.debug}
+            </div>
+          )}
         </div>
       )}
 
@@ -520,10 +636,12 @@ export default function AiCardGeneratorTab({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isGenerating || isLimitReached}
+            disabled={isGenerating}
             className={`w-full py-3.5 bg-white text-black rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center space-x-2 cursor-pointer ${
-              isGenerating || isLimitReached
+              isGenerating
                 ? 'opacity-60 cursor-not-allowed bg-gray-300'
+                : isLimitReached
+                ? 'opacity-80 hover:bg-gray-200'
                 : 'hover:bg-gray-200'
             }`}
           >

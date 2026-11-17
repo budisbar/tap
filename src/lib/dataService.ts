@@ -343,6 +343,9 @@ class DataService {
 
   // --- AI DAILY USAGE LIMIT (10 generations per day) ---
   async getDailyAiUsage(userId: string): Promise<number> {
+    if (!userId) {
+      throw new Error('AUTH_ERROR: Missing userId for daily quota check');
+    }
     const dateKey = new Date().toISOString().slice(0, 10);
     const usageDocRef = doc(firestore, 'users', userId, 'usage', dateKey);
     const snap = await getDoc(usageDocRef);
@@ -351,6 +354,9 @@ class DataService {
   }
 
   async incrementDailyAiUsage(userId: string): Promise<number> {
+    if (!userId) {
+      throw new Error('AUTH_ERROR: Missing userId for daily quota increment');
+    }
     const dateKey = new Date().toISOString().slice(0, 10);
     const usageDocRef = doc(firestore, 'users', userId, 'usage', dateKey);
     const snap = await getDoc(usageDocRef);

@@ -167,6 +167,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const [activeTab, setActiveTab] = useState<'ai' | 'templates' | 'material' | 'elements' | 'image' | 'background' | 'draw'>('ai');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
+  const [aiError, setAiError] = useState<{ friendly: string; debug?: string } | null>(null);
   const [isReplaceConfirmOpen, setIsReplaceConfirmOpen] = useState(false);
   const [pendingAiInput, setPendingAiInput] = useState<AiCardPromptInput | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -710,19 +711,72 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   };
 
   const executeAiCardGeneration = async (input: AiCardPromptInput) => {
-    if (!user) return;
+    if (!user) {
+      const friendly = 'Please sign in to generate a card with AI.';
+      const debug = 'AUTH_REQUIRED: User must be signed in to create an AI card.';
+      setAiError({ friendly, debug });
+      console.error('[AI Card Generation]', debug);
+      return;
+    }
+
     setIsGeneratingAI(true);
+    setAiError(null);
+
     try {
-      await db.incrementDailyAiUsage(user.id);
+      // Step 1: Read daily counter from Firestore
+      let dailyUsage = 0;
+      try {
+        dailyUsage = await db.getDailyAiUsage(user.id);
+      } catch (readErr: any) {
+        console.error('[Firestore Counter Read Error]:', readErr);
+        const errCode = readErr?.code || 'firestore/read-failed';
+        throw new Error(`${errCode}: Could not check daily quota (${readErr?.message || String(readErr)})`);
+      }
+
+      if (dailyUsage >= DAILY_AI_LIMIT) {
+        throw new Error(`QUOTA_EXCEEDED: You've reached today's limit of ${DAILY_AI_LIMIT} generations.`);
+      }
+
+      // Step 2: The Gemini call, JSON parsing & validation
       const result = await generateCardWithAi(input);
-      recordHistoryRef.current('ai-generation');
-      setCardData(result.cardData);
-      setSelectedMaterialId(result.selectedMaterialId);
-      setPlasticBgColors({
-        front: result.cardData.front.bgColor,
-        back: result.cardData.back.bgColor,
-      });
-      setHasGeneratedOnce(true);
+
+      // Step 3: Apply the generated layout to the canvas
+      try {
+        recordHistoryRef.current('ai-generation');
+        setCardData(result.cardData);
+        setSelectedMaterialId(result.selectedMaterialId);
+        setPlasticBgColors({
+          front: result.cardData.front.bgColor,
+          back: result.cardData.back.bgColor,
+        });
+        setHasGeneratedOnce(true);
+      } catch (applyErr: any) {
+        console.error('[Canvas Apply Error]:', applyErr);
+        throw new Error(`CANVAS_APPLY_ERROR: Failed to update canvas (${applyErr?.message || String(applyErr)})`);
+      }
+
+      // Step 4: Increment daily usage in Firestore
+      try {
+        await db.incrementDailyAiUsage(user.id);
+      } catch (incErr: any) {
+        console.error('[Firestore Counter Increment Error]:', incErr);
+        // Do not discard the card if counter update failed
+      }
+    } catch (err: any) {
+      console.error('[AI Card Generation Full Error]:', err);
+
+      let friendly = "We couldn't create your card. Please try again.";
+      const rawMsg = err?.message || String(err || '');
+      const errCode = err?.code || err?.name || 'AI/generation-error';
+
+      if (rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota') || rawMsg.includes('busy')) {
+        friendly = 'The AI is busy right now. Please try again later.';
+      } else if (rawMsg.includes('QUOTA_EXCEEDED') || rawMsg.includes("today's limit")) {
+        friendly = "You've reached today's limit. Come back tomorrow.";
+      }
+
+      const debug = rawMsg.includes(':') ? rawMsg : `${errCode}: ${rawMsg}`;
+      setAiError({ friendly, debug });
     } finally {
       setIsGeneratingAI(false);
       setPendingAiInput(null);
@@ -730,7 +784,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   };
 
   const handleAiGenerate = async (input: AiCardPromptInput) => {
+    setAiError(null);
     if (!user) {
+      const friendly = 'Please sign in to generate a card with AI.';
+      const debug = 'AUTH_REQUIRED: User must be signed in to create an AI card.';
+      setAiError({ friendly, debug });
       setIsAuthModalOpen(true);
       return;
     }
@@ -1328,6 +1386,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                     onGenerate={handleAiGenerate}
                     isGenerating={isGeneratingAI}
                     hasGeneratedOnce={hasGeneratedOnce}
+                    aiError={aiError}
+                    onClearAiError={() => setAiError(null)}
+                    isReplaceConfirmOpen={isReplaceConfirmOpen}
                   />
                 </div>
               )}
@@ -2174,9 +2235,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                 <button
                   type="button"
                   onClick={async () => {
+                    const toGenerate = pendingAiInput;
                     setIsReplaceConfirmOpen(false);
-                    if (pendingAiInput) {
-                      await executeAiCardGeneration(pendingAiInput);
+                    if (toGenerate) {
+                      await executeAiCardGeneration(toGenerate);
                     }
                   }}
                   className="flex-1 py-2.5 bg-white hover:bg-gray-200 text-black rounded-lg text-xs font-bold transition-colors cursor-pointer"
