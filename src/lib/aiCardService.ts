@@ -1,4 +1,4 @@
-import { getGenerativeModel, SchemaType } from 'firebase/ai';
+import { getGenerativeModel, SchemaType, ThinkingLevel } from 'firebase/ai';
 import { ai, GEMINI_MODEL_NAME } from './firebase';
 import { CardState, ElementData, CardMaterial, MATERIALS } from '../components/studio/customizerData';
 
@@ -148,7 +148,7 @@ export async function generateCardWithAi(
           temperature: 0.7,
           maxOutputTokens: 2000,
           thinkingConfig: {
-            thinkingBudget: 0,
+            thinkingLevel: ThinkingLevel.MINIMAL,
           },
         },
       },
@@ -206,9 +206,39 @@ Return only the JSON layout.
     if (rawMsg.includes('DEADLINE_EXCEEDED') || rawMsg.includes('timeout')) {
       throw new Error('This is taking too long. Please try again.');
     }
-    console.error('Gemini generateContent error:', genErr);
-    const errCode = genErr?.code || genErr?.status || 'AI/fetch-error';
-    throw new Error(`${errCode}: ${rawMsg}`);
+
+    // If 400 Invalid Argument was returned, retry without thinkingConfig
+    if (rawMsg.includes('400') || rawMsg.includes('invalid argument') || rawMsg.includes('INVALID_ARGUMENT')) {
+      console.warn('Retrying Gemini generation without thinkingConfig due to 400 invalid argument:', rawMsg);
+      try {
+        const fallbackModel = getGenerativeModel(
+          ai,
+          {
+            model: GEMINI_MODEL_NAME,
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: cardLayoutSchema,
+              temperature: 0.7,
+              maxOutputTokens: 2000,
+            },
+          },
+          {
+            timeout: 30000,
+            signal,
+          }
+        );
+        response = await fallbackModel.generateContent(prompt);
+      } catch (retryErr: any) {
+        console.error('Fallback Gemini generateContent error:', retryErr);
+        const retryMsg = retryErr?.message || String(retryErr);
+        const errCode = retryErr?.code || retryErr?.status || 'AI/fetch-error';
+        throw new Error(`${errCode}: ${retryMsg}`);
+      }
+    } else {
+      console.error('Gemini generateContent error:', genErr);
+      const errCode = genErr?.code || genErr?.status || 'AI/fetch-error';
+      throw new Error(`${errCode}: ${rawMsg}`);
+    }
   }
 
   let text = '';
