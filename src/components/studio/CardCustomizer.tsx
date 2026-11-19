@@ -178,7 +178,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   // "Edit by asking" AI state
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingAI, setIsEditingAI] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<{ friendly: string; debug?: string } | null>(null);
   const [editHistory, setEditHistory] = useState<string[]>([]);
   const [dailyEditUsage, setDailyEditUsage] = useState<number>(0);
   const editAbortControllerRef = useRef<AbortController | null>(null);
@@ -893,7 +893,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
     setEditError(null);
     if (!user) {
-      setEditError('Please sign in to edit your card with AI.');
+      setEditError({
+        friendly: 'Please sign in to edit your card with AI.',
+        debug: 'AUTH_REQUIRED: User is not signed in.',
+      });
       setIsAuthModalOpen(true);
       return;
     }
@@ -915,11 +918,15 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         setDailyEditUsage(currentEditUsage);
       } catch (readErr: any) {
         console.error('[Firestore Edit Counter Read Error]:', readErr);
-        throw new Error("We couldn't check your daily edit limit. Please try again.");
+        const err: any = new Error("We couldn't check your daily edit limit. Please try again.");
+        err.debugReason = `${readErr?.code || 'firestore/read-error'}: ${readErr?.message || String(readErr)}`;
+        throw err;
       }
 
       if (currentEditUsage >= DAILY_AI_EDIT_LIMIT) {
-        throw new Error("You've reached today's edit limit. Come back tomorrow.");
+        const err: any = new Error("You've reached today's edit limit. Come back tomorrow.");
+        err.debugReason = `LIMIT_REACHED: Used ${currentEditUsage}/${DAILY_AI_EDIT_LIMIT} daily edits.`;
+        throw err;
       }
 
       const targetCardW = productType === 'board' ? 300 : orientation === 'horizontal' ? 428 : 270;
@@ -941,12 +948,16 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       );
 
       if (result.cannotFulfill) {
-        setEditError(result.message || "I couldn't do that. Try something like 'make the name bigger'.");
+        setEditError({
+          friendly: result.message || "I couldn't do that. Try something like 'make the name bigger'.",
+        });
         return;
       }
 
       if (!result.cardData) {
-        throw new Error("We couldn't apply that change. Please try again.");
+        const err: any = new Error("We couldn't apply that change. Please try again.");
+        err.debugReason = 'EMPTY_CARD_DATA: Validated result contained no cardData.';
+        throw err;
       }
 
       // Apply change as one undoable step
@@ -978,7 +989,10 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     } catch (err: any) {
       if (controller.signal.aborted) {
         if (controller.signal.reason === 'TIMEOUT' || String(err?.message || err).includes('taking too long')) {
-          setEditError('This is taking too long. Please try again.');
+          setEditError({
+            friendly: 'This is taking too long. Please try again.',
+            debug: err?.debugReason || 'TIMEOUT: Request exceeded 30s.',
+          });
           return;
         }
         setEditError(null);
@@ -993,8 +1007,14 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
       console.error('[AI Card Edit Full Error]:', err);
 
+      const debugReason =
+        err?.debugReason || (err?.code ? `${err.code}: ${rawMsg}` : rawMsg);
+
       if (rawMsg.includes('taking too long') || rawMsg.includes('DEADLINE_EXCEEDED')) {
-        setEditError('This is taking too long. Please try again.');
+        setEditError({
+          friendly: 'This is taking too long. Please try again.',
+          debug: debugReason,
+        });
       } else if (
         rawMsg.includes('busy right now') ||
         rawMsg.includes('500') ||
@@ -1005,13 +1025,25 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         rawMsg.includes('overloaded') ||
         rawMsg.includes('UNAVAILABLE')
       ) {
-        setEditError('Our AI is very busy right now. Please try again in a minute.');
+        setEditError({
+          friendly: 'Our AI is very busy right now. Please try again in a minute.',
+          debug: debugReason,
+        });
       } else if (rawMsg.includes("today's edit limit")) {
-        setEditError("You've reached today's edit limit. Come back tomorrow.");
+        setEditError({
+          friendly: "You've reached today's edit limit. Come back tomorrow.",
+          debug: debugReason,
+        });
       } else if (rawMsg.includes("couldn't check your daily edit limit")) {
-        setEditError("We couldn't check your daily edit limit. Please try again.");
+        setEditError({
+          friendly: "We couldn't check your daily edit limit. Please try again.",
+          debug: debugReason,
+        });
       } else {
-        setEditError("We couldn't apply that change. Please try again.");
+        setEditError({
+          friendly: "We couldn't apply that change. Please try again.",
+          debug: debugReason,
+        });
       }
     } finally {
       clearTimeout(timeoutId);
@@ -2396,9 +2428,16 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
               </form>
 
               {/* Error feedback and daily edit quota */}
-              <div className="flex items-center justify-between gap-2 px-1">
+              <div className="flex items-start justify-between gap-2 px-1">
                 {editError ? (
-                  <span className="text-[11px] text-red-400 leading-tight">{editError}</span>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-red-400 leading-tight">{editError.friendly}</span>
+                    {editError.debug && (
+                      <span className="text-[10px] text-gray-500 font-mono break-all leading-tight mt-0.5">
+                        {editError.debug}
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span />
                 )}

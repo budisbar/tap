@@ -135,16 +135,18 @@ export async function analyzeLogo(file: File): Promise<{
   });
 }
 
-// Simplified Flat JSON Schema for Canvas Elements
+// Simplified Flat JSON Schema for Canvas Elements (shared by Generator & Editor)
 const elementSchema = {
   type: SchemaType.OBJECT,
   properties: {
+    id: { type: SchemaType.STRING },
     type: { type: SchemaType.STRING }, // "text", "shape", "icon", "image"
     x: { type: SchemaType.INTEGER },
     y: { type: SchemaType.INTEGER },
     width: { type: SchemaType.INTEGER },
     height: { type: SchemaType.INTEGER },
     text: { type: SchemaType.STRING },
+    font: { type: SchemaType.STRING },
     fontSize: { type: SchemaType.INTEGER },
     color: { type: SchemaType.STRING },
     shape: { type: SchemaType.STRING }, // "rectangle", "circle", "pill"
@@ -167,53 +169,26 @@ const cardLayoutSchema = {
       type: SchemaType.ARRAY,
       items: elementSchema,
     },
+    cannotFulfill: { type: SchemaType.BOOLEAN },
+    message: { type: SchemaType.STRING },
   },
   required: ['materialId', 'frontBg', 'backBg', 'front', 'back'],
 };
 
-const editElementSchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    id: { type: SchemaType.STRING },
-    type: { type: SchemaType.STRING },
-    x: { type: SchemaType.INTEGER },
-    y: { type: SchemaType.INTEGER },
-    width: { type: SchemaType.INTEGER },
-    height: { type: SchemaType.INTEGER },
-    text: { type: SchemaType.STRING },
-    fontSize: { type: SchemaType.INTEGER },
-    textAlign: { type: SchemaType.STRING },
-    color: { type: SchemaType.STRING },
-    shape: { type: SchemaType.STRING },
-    rotation: { type: SchemaType.INTEGER },
-  },
-  required: ['type', 'x', 'y', 'color'],
-};
-
-const editCardLayoutSchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    cannotFulfill: { type: SchemaType.BOOLEAN },
-    message: { type: SchemaType.STRING },
-    frontBg: { type: SchemaType.STRING },
-    backBg: { type: SchemaType.STRING },
-    front: {
-      type: SchemaType.ARRAY,
-      items: editElementSchema,
-    },
-    back: {
-      type: SchemaType.ARRAY,
-      items: editElementSchema,
-    },
-  },
-  required: ['cannotFulfill'],
-};
+function attachDebugReason(err: any, reason: string): Error {
+  const wrapped: any = err instanceof Error ? err : new Error(String(err));
+  if (!wrapped.debugReason) {
+    wrapped.debugReason = reason;
+  }
+  return wrapped;
+}
 
 async function callGeminiModel(
   modelName: string,
   prompt: string,
   signal?: AbortSignal,
-  schema: any = cardLayoutSchema
+  schema: any = cardLayoutSchema,
+  maxOutputTokens: number = 2000
 ) {
   let model = getGenerativeModel(
     ai,
@@ -223,7 +198,7 @@ async function callGeminiModel(
         responseMimeType: 'application/json',
         responseSchema: schema,
         temperature: 0.7,
-        maxOutputTokens: 2000,
+        maxOutputTokens,
         thinkingConfig: {
           thinkingLevel: ThinkingLevel.MINIMAL,
         },
@@ -248,7 +223,7 @@ async function callGeminiModel(
             responseMimeType: 'application/json',
             responseSchema: schema,
             temperature: 0.7,
-            maxOutputTokens: 2000,
+            maxOutputTokens,
           },
         },
         {
@@ -267,7 +242,8 @@ async function executePromptWithRetries(
   schema: any,
   fallbackErrorMessage: string,
   logTag: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maxOutputTokens: number = 2000
 ): Promise<any> {
   let response: any = null;
   let lastError: any = null;
@@ -277,7 +253,7 @@ async function executePromptWithRetries(
   for (let attempt = 0; attempt <= 2; attempt++) {
     try {
       if (signal?.aborted) throw new Error('USER_CANCELLED');
-      response = await callGeminiModel(PRIMARY_MODEL, prompt, signal, schema);
+      response = await callGeminiModel(PRIMARY_MODEL, prompt, signal, schema, maxOutputTokens);
       lastError = null;
       break;
     } catch (err: any) {
@@ -286,7 +262,7 @@ async function executePromptWithRetries(
 
       if (signal?.aborted) {
         if (signal.reason === 'TIMEOUT' || String(err).includes('taking too long') || String(err).includes('DEADLINE_EXCEEDED')) {
-          throw new Error('This is taking too long. Please try again.');
+          throw attachDebugReason(new Error('This is taking too long. Please try again.'), 'TIMEOUT: Request exceeded 30s');
         }
         throw new Error('USER_CANCELLED');
       }
@@ -304,7 +280,7 @@ async function executePromptWithRetries(
     try {
       if (signal?.aborted) throw new Error('USER_CANCELLED');
       console.warn(`[${logTag}] Primary model failed. Attempting backup model: ${BACKUP_MODEL}`);
-      response = await callGeminiModel(BACKUP_MODEL, prompt, signal, schema);
+      response = await callGeminiModel(BACKUP_MODEL, prompt, signal, schema, maxOutputTokens);
       lastError = null;
     } catch (backupErr: any) {
       lastError = backupErr;
@@ -315,14 +291,17 @@ async function executePromptWithRetries(
   if (!response) {
     if (signal?.aborted) {
       if (signal.reason === 'TIMEOUT' || String(lastError).includes('taking too long') || String(lastError).includes('DEADLINE_EXCEEDED')) {
-        throw new Error('This is taking too long. Please try again.');
+        throw attachDebugReason(new Error('This is taking too long. Please try again.'), 'TIMEOUT: Request exceeded 30s');
       }
       throw new Error('USER_CANCELLED');
     }
+    const errCode = lastError?.code || lastError?.status || lastError?.name || 'AI/fetch-error';
+    const errMsg = lastError?.message || String(lastError || 'Unknown error');
+    const detail = `${errCode}: ${errMsg}`;
     if (isHighDemandError(lastError)) {
-      throw new Error('Our AI is very busy right now. Please try again in a minute.');
+      throw attachDebugReason(new Error('Our AI is very busy right now. Please try again in a minute.'), detail);
     }
-    throw new Error(fallbackErrorMessage);
+    throw attachDebugReason(new Error(fallbackErrorMessage), detail);
   }
 
   let text = '';
@@ -330,18 +309,35 @@ async function executePromptWithRetries(
     text = response.response.text();
   } catch (textErr: any) {
     console.error(`[${logTag}] Failed to extract text from Gemini response:`, textErr);
-    throw new Error(fallbackErrorMessage);
+    throw attachDebugReason(
+      new Error(fallbackErrorMessage),
+      `RESPONSE_READ_ERROR: ${textErr?.message || String(textErr)}`
+    );
   }
 
   if (!text) {
-    throw new Error(fallbackErrorMessage);
+    console.error(`[${logTag}] Raw AI response was empty.`);
+    throw attachDebugReason(new Error(fallbackErrorMessage), 'EMPTY_RESPONSE: Gemini returned empty text');
   }
 
+  if (logTag === 'AI Edit') {
+    console.error('[AI Edit] Raw AI response:', text);
+  }
+
+  const cleanedJson = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleanedJson);
   } catch (jsonErr: any) {
     console.error(`[${logTag}] Failed to parse Gemini response as JSON:`, jsonErr, 'Raw text:', text);
-    throw new Error(fallbackErrorMessage);
+    throw attachDebugReason(
+      new Error(fallbackErrorMessage),
+      `INVALID_JSON: ${jsonErr?.message || String(jsonErr)}`
+    );
   }
 }
 
@@ -872,32 +868,59 @@ export interface EditedCardResult {
   };
 }
 
-function serializeSideForEdit(side: CardState) {
-  return side.elements
-    .filter((el) => el.type !== 'drawing')
-    .map((el) => {
-      const serialized: Record<string, any> = {
-        id: el.id,
-        type: el.type,
-        x: Math.round(el.x),
-        y: Math.round(el.y),
-        color: el.color,
-      };
-      if (el.width !== undefined) serialized.width = Math.round(el.width);
-      if (el.height !== undefined) serialized.height = Math.round(el.height);
-      if (el.rotation) serialized.rotation = Math.round(el.rotation);
-      if (el.type === 'text') {
-        serialized.text = el.content || '';
-        serialized.fontSize = el.fontSize || 16;
-        if (el.textAlign) serialized.textAlign = el.textAlign;
-      } else if (el.type === 'icon') {
-        serialized.text = el.iconId || 'contactless';
-      } else if (el.type === 'shape') {
-        serialized.shape = (el.borderRadius || 0) >= 999 ? 'circle' : 'rectangle';
-      }
-      // Note: imageUrl is intentionally omitted so base64 payloads are never sent to Gemini
-      return serialized;
-    });
+function buildEditPayload(input: AiCardEditInput) {
+  const imageMap = new Map<string, ElementData>();
+  const idToPlaceholder = new Map<string, string>();
+  let imageIndex = 0;
+
+  const mapSide = (side: CardState) =>
+    side.elements
+      .filter((el) => el.type !== 'drawing')
+      .map((el) => {
+        const isImage = el.type === 'image';
+        let id = el.id;
+        if (isImage) {
+          imageIndex += 1;
+          const placeholderId = `image_${imageIndex}`;
+          imageMap.set(placeholderId, el);
+          idToPlaceholder.set(el.id, placeholderId);
+          id = placeholderId;
+        }
+
+        const serialized: Record<string, any> = {
+          id,
+          type: el.type,
+          x: Math.round(el.x),
+          y: Math.round(el.y),
+          width: Math.round(el.width ?? (isImage ? 100 : el.type === 'icon' ? 40 : 140)),
+          height: Math.round(el.height ?? (isImage ? 100 : el.type === 'icon' ? 40 : 28)),
+          rotation: Math.round(el.rotation || 0),
+          color: el.color || '#000000',
+        };
+
+        if (el.type === 'text') {
+          serialized.text = el.content || '';
+          serialized.font = el.fontFamily || 'var(--font-sans)';
+          serialized.fontSize = el.fontSize || 16;
+        } else if (el.type === 'icon') {
+          serialized.text = el.iconId || 'contactless';
+        } else if (el.type === 'shape') {
+          serialized.shape = (el.borderRadius || 0) >= 999 ? 'circle' : 'rectangle';
+        }
+        // Images strictly emit placeholder id, position, width, height, rotation, color (never URLs or base64)
+        return serialized;
+      });
+
+  return {
+    imageMap,
+    payload: {
+      materialId: input.materialId,
+      frontBg: input.cardData.front.bgColor,
+      backBg: input.cardData.back.bgColor,
+      front: mapSide(input.cardData.front),
+      back: mapSide(input.cardData.back),
+    },
+  };
 }
 
 function isRemovalRequest(request: string): boolean {
@@ -915,12 +938,8 @@ export async function editCardWithAi(
   const safeMaxX = Math.max(40, cardW - 24);
   const safeMaxY = Math.max(40, cardH - 16);
 
-  const currentDesignJson = JSON.stringify({
-    frontBg: input.cardData.front.bgColor,
-    backBg: input.cardData.back.bgColor,
-    front: serializeSideForEdit(input.cardData.front),
-    back: serializeSideForEdit(input.cardData.back),
-  });
+  const { imageMap, payload } = buildEditPayload(input);
+  const currentDesignJson = JSON.stringify(payload);
 
   const historyBlock =
     input.recentRequests.length > 0
@@ -945,12 +964,12 @@ CRITICAL RULES:
 - Never add text, icons or elements the user did not ask for.
 - Keep every element inside the safe margins unless it is intentionally cropped.
 - Metal and wood: no colours, engraved look only.
-- Preserve every element's "id" field on all existing elements.
-- For "image" elements (the user's uploaded logo), never remove or replace the image; only change x, y, width, height, or rotation when asked.
+- Preserve every element's "id" field on all existing elements (especially image placeholders like "image_1").
+- For "image" elements (the user's uploaded logo), never remove or change image identity; only update x, y, width, height, or rotation when asked.
 - Card dimensions: ${cardW}x${cardH}px. Safe margins: x: 24-${safeMaxX}, y: 16-${safeMaxY}.
 - ${engraveRule}
-- If the request is unclear or impossible (for example "add a photo of my shop", adding photos, realistic images, 3D renders, or anything outside card layout/text/colors/sizes/shapes/icons), set "cannotFulfill": true and "message": "I couldn't do that. Try something like 'make the name bigger'.".
-- Otherwise set "cannotFulfill": false and return the full updated card design ("frontBg", "backBg", "front", "back").
+- If the request is unclear or impossible (for example "add a photo of my shop", adding photos, realistic images, 3D renders, or anything outside card layout/text/colors/sizes/shapes/icons), set "cannotFulfill": true, "message": "I couldn't do that. Try something like 'make the name bigger'.", and return the unchanged "front" and "back" arrays.
+- Otherwise set "cannotFulfill": false and return the full updated card design ("materialId", "frontBg", "backBg", "front", "back").
 
 ${historyBlock}
 
@@ -968,23 +987,31 @@ Return only the JSON result.
 
   const rawData = await executePromptWithRetries(
     prompt,
-    editCardLayoutSchema,
+    cardLayoutSchema,
     "We couldn't apply that change. Please try again.",
     'AI Edit',
-    signal
+    signal,
+    4000
   );
 
   try {
-    return sanitizeEditedLayout(rawData, input);
+    return sanitizeEditedLayout(rawData, input, imageMap);
   } catch (valErr: any) {
     console.error('[AI Edit] Layout validation error:', valErr);
-    throw new Error("We couldn't apply that change. Please try again.");
+    throw attachDebugReason(
+      new Error("We couldn't apply that change. Please try again."),
+      valErr?.debugReason || valErr?.message || String(valErr)
+    );
   }
 }
 
-function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResult {
+function sanitizeEditedLayout(
+  raw: any,
+  input: AiCardEditInput,
+  imageMap: Map<string, ElementData>
+): EditedCardResult {
   if (!raw || typeof raw !== 'object') {
-    throw new Error('Invalid response structure');
+    throw attachDebugReason(new Error('Invalid response structure'), 'VALIDATION_OBJECT: Response is not a JSON object');
   }
 
   if (raw.cannotFulfill === true) {
@@ -994,8 +1021,17 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
     };
   }
 
-  if (!Array.isArray(raw.front) || !Array.isArray(raw.back)) {
-    throw new Error('Missing front or back arrays');
+  const rawFrontHasItems = Array.isArray(raw.front) && raw.front.length > 0;
+  const rawBackHasItems = Array.isArray(raw.back) && raw.back.length > 0;
+
+  if (!rawFrontHasItems && !rawBackHasItems) {
+    if (typeof raw.message === 'string' && raw.message.trim()) {
+      return {
+        cannotFulfill: true,
+        message: "I couldn't do that. Try something like 'make the name bigger'.",
+      };
+    }
+    throw attachDebugReason(new Error('No elements returned'), 'VALIDATION_EMPTY: AI returned no elements on front or back');
   }
 
   const cardW = input.cardWidth || 428;
@@ -1020,7 +1056,20 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
 
   const allowRemoval = isRemovalRequest(input.userRequest);
 
-  const sanitizeEditedSide = (rawList: any[], origSide: CardState, sideName: 'front' | 'back'): CardState => {
+  const sanitizeEditedSide = (rawList: any[] | undefined, origSide: CardState, sideName: 'front' | 'back'): CardState => {
+    const targetBg = sideName === 'front' ? frontBg : backBg;
+
+    // Forgiving rule: if AI returned only one side, keep the other side unchanged
+    if (!Array.isArray(rawList) || rawList.length === 0) {
+      return {
+        bgColor: targetBg,
+        elements: origSide.elements.map((el) => ({
+          ...el,
+          color: isEngraved && matchingMaterial ? matchingMaterial.engraveColor || el.color : el.color,
+        })),
+      };
+    }
+
     const origById = new Map<string, ElementData>(origSide.elements.map((e) => [e.id, e]));
     const origImages = origSide.elements.filter((e) => e.type === 'image' && e.imageUrl);
     const origDrawings = origSide.elements.filter((e) => e.type === 'drawing');
@@ -1032,11 +1081,72 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
       if (!el || typeof el !== 'object') return;
 
       const rawType = ['text', 'shape', 'icon', 'image'].includes(el.type) ? el.type : null;
-      let origMatch = typeof el.id === 'string' ? origById.get(el.id) : undefined;
+      let origMatch: ElementData | undefined;
 
-      // Fallback match for an un-removed image element on the same side if AI omitted its id
+      // 1. Direct match by placeholder id (e.g. "image_1") or original element id
+      if (typeof el.id === 'string' && el.id.trim()) {
+        const mappedImg = imageMap.get(el.id.trim());
+        if (mappedImg && !usedOrigIds.has(mappedImg.id)) {
+          origMatch = mappedImg;
+        } else {
+          const direct = origById.get(el.id.trim());
+          if (direct && !usedOrigIds.has(direct.id)) {
+            origMatch = direct;
+          }
+        }
+      }
+
+      // 2. Forgiving match when id is missing or changed: match by placeholder in text, type & text, or type order
       if (!origMatch && rawType === 'image') {
-        origMatch = origImages.find((imgEl) => !usedOrigIds.has(imgEl.id));
+        if (typeof el.text === 'string' && imageMap.has(el.text.trim())) {
+          const byTextPlaceholder = imageMap.get(el.text.trim());
+          if (byTextPlaceholder && !usedOrigIds.has(byTextPlaceholder.id)) {
+            origMatch = byTextPlaceholder;
+          }
+        }
+        if (!origMatch) {
+          origMatch = origImages.find((imgEl) => !usedOrigIds.has(imgEl.id));
+        }
+        if (!origMatch) {
+          for (const mapped of imageMap.values()) {
+            if (!usedOrigIds.has(mapped.id)) {
+              origMatch = mapped;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!origMatch && rawType === 'text') {
+        const cleanedText = typeof el.text === 'string' ? cleanStringForComparison(el.text) : '';
+        if (cleanedText) {
+          origMatch = origSide.elements.find(
+            (orig) =>
+              !usedOrigIds.has(orig.id) &&
+              orig.type === 'text' &&
+              orig.content &&
+              cleanStringForComparison(orig.content) === cleanedText
+          );
+        }
+        if (!origMatch) {
+          origMatch = origSide.elements.find((orig) => !usedOrigIds.has(orig.id) && orig.type === 'text');
+        }
+      }
+
+      if (!origMatch && rawType === 'icon') {
+        const iconName = typeof el.text === 'string' ? el.text.trim().toLowerCase() : '';
+        if (iconName) {
+          origMatch = origSide.elements.find(
+            (orig) => !usedOrigIds.has(orig.id) && orig.type === 'icon' && orig.iconId?.toLowerCase() === iconName
+          );
+        }
+        if (!origMatch) {
+          origMatch = origSide.elements.find((orig) => !usedOrigIds.has(orig.id) && orig.type === 'icon');
+        }
+      }
+
+      if (!origMatch && rawType === 'shape') {
+        origMatch = origSide.elements.find((orig) => !usedOrigIds.has(orig.id) && orig.type === 'shape');
       }
 
       const type: ElementData['type'] = origMatch?.type || rawType || 'text';
@@ -1083,13 +1193,11 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
       let x: number;
       let y: number;
       if (type === 'text' || type === 'icon') {
-        // Respect safe margins on non-cropped elements
         const effW = Math.min(width, Math.max(40, cardW - 48));
         const effH = Math.min(height ?? 28, Math.max(24, cardH - 32));
         x = Math.max(24, Math.min(candidateX, Math.max(24, cardW - effW - 24)));
         y = Math.max(16, Math.min(candidateY, Math.max(16, cardH - effH - 16)));
       } else {
-        // Allow intentional cropping/bleed on shapes and images
         x = Math.max(-120, Math.min(candidateX, cardW - 16));
         y = Math.max(-100, Math.min(candidateY, cardH - 16));
       }
@@ -1127,10 +1235,11 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
           10,
           Math.min(Number.isFinite(rawFontSize) && rawFontSize > 0 ? Math.round(rawFontSize) : origMatch?.fontSize || 16, 64)
         );
-        cleanEl.fontFamily = origMatch?.fontFamily || 'var(--font-sans)';
-        cleanEl.textAlign = ['left', 'center', 'right'].includes(el.textAlign)
-          ? el.textAlign
-          : origMatch?.textAlign || 'left';
+        cleanEl.fontFamily =
+          typeof el.font === 'string' && el.font.trim()
+            ? el.font.trim()
+            : origMatch?.fontFamily || 'var(--font-sans)';
+        cleanEl.textAlign = origMatch?.textAlign || 'left';
         cleanEl.textTransform = origMatch?.textTransform || 'none';
       } else if (type === 'icon') {
         cleanEl.iconId = typeof el.text === 'string' && el.text.trim() ? el.text.trim() : origMatch?.iconId || 'contactless';
@@ -1144,14 +1253,14 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
           cleanEl.borderRadius = origMatch?.borderRadius ?? 0;
         }
       } else if (type === 'image' && origMatch) {
-        // Never alter the uploaded logo image asset itself
+        // Restore original uploaded logo asset from placeholder id
         cleanEl.imageUrl = origMatch.imageUrl;
       }
 
       sanitizedElements.push(cleanEl);
     });
 
-    // Retain any uploaded logo image if the AI accidentally omitted it without a removal request
+    // Retain any uploaded logo image if omitted without an explicit removal request
     if (!allowRemoval) {
       origImages.forEach((imgEl) => {
         if (!usedOrigIds.has(imgEl.id)) {
@@ -1160,7 +1269,7 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
       });
     }
 
-    // Preserve hand-drawn strokes on the side (enforcing engraved color if applicable)
+    // Preserve hand-drawn strokes on the side
     origDrawings.forEach((drawEl) => {
       sanitizedElements.push({
         ...drawEl,
@@ -1168,17 +1277,16 @@ function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResul
       });
     });
 
-    // Ensure sequential z-order if needed while preserving relative stacking
     sanitizedElements.sort((a, b) => (a.z || 0) - (b.z || 0));
 
     return {
-      bgColor: sideName === 'front' ? frontBg : backBg,
+      bgColor: targetBg,
       elements: sanitizedElements,
     };
   };
 
-  const frontState = sanitizeEditedSide(raw.front, input.cardData.front, 'front');
-  const backState = sanitizeEditedSide(raw.back, input.cardData.back, 'back');
+  const frontState = sanitizeEditedSide(rawFrontHasItems ? raw.front : undefined, input.cardData.front, 'front');
+  const backState = sanitizeEditedSide(rawBackHasItems ? raw.back : undefined, input.cardData.back, 'back');
 
   return {
     cannotFulfill: false,
