@@ -372,6 +372,37 @@ class DataService {
     return current + 1;
   }
 
+  // --- AI EDIT DAILY USAGE LIMIT (30 edits per day) ---
+  async getDailyAiEditUsage(userId: string): Promise<number> {
+    if (!userId) {
+      throw new Error('AUTH_ERROR: Missing userId for daily edit quota check');
+    }
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const usageDocRef = doc(firestore, 'users', userId, 'editUsage', dateKey);
+    const snap = await getDoc(usageDocRef);
+    if (!snap.exists()) return 0;
+    return Number(snap.data()?.count) || 0;
+  }
+
+  async incrementDailyAiEditUsage(userId: string): Promise<number> {
+    if (!userId) {
+      throw new Error('AUTH_ERROR: Missing userId for daily edit quota increment');
+    }
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const usageDocRef = doc(firestore, 'users', userId, 'editUsage', dateKey);
+    const snap = await getDoc(usageDocRef);
+    if (!snap.exists()) {
+      await setDoc(usageDocRef, { count: 1, date: dateKey, updatedAt: Date.now() });
+      return 1;
+    }
+    const current = Number(snap.data()?.count) || 0;
+    if (current >= DAILY_AI_EDIT_LIMIT) {
+      throw new Error("You've reached today's edit limit. Come back tomorrow.");
+    }
+    await updateDoc(usageDocRef, { count: increment(1), updatedAt: Date.now() });
+    return current + 1;
+  }
+
   // --- IMAGES & ASSETS ---
   async saveImage(userId: string, dataUrl: string): Promise<ImageAsset> {
     // In-memory / temporary asset object so local uploads can be displayed immediately
@@ -413,6 +444,7 @@ class DataService {
 }
 
 export const DAILY_AI_LIMIT = 10;
+export const DAILY_AI_EDIT_LIMIT = 30;
 
 export const dataService = new DataService();
 export const db = dataService;

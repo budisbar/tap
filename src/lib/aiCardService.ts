@@ -1,6 +1,6 @@
 import { getGenerativeModel, SchemaType, ThinkingLevel } from 'firebase/ai';
 import { ai, PRIMARY_GEMINI_MODEL, BACKUP_GEMINI_MODEL } from './firebase';
-import { CardState, ElementData, CardMaterial, MATERIALS } from '../components/studio/customizerData';
+import { CardState, ElementData, CardMaterial, MATERIALS, isEngravedMaterial } from '../components/studio/customizerData';
 
 export const PRIMARY_MODEL = PRIMARY_GEMINI_MODEL;
 export const BACKUP_MODEL = BACKUP_GEMINI_MODEL;
@@ -171,10 +171,49 @@ const cardLayoutSchema = {
   required: ['materialId', 'frontBg', 'backBg', 'front', 'back'],
 };
 
+const editElementSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    id: { type: SchemaType.STRING },
+    type: { type: SchemaType.STRING },
+    x: { type: SchemaType.INTEGER },
+    y: { type: SchemaType.INTEGER },
+    width: { type: SchemaType.INTEGER },
+    height: { type: SchemaType.INTEGER },
+    text: { type: SchemaType.STRING },
+    fontSize: { type: SchemaType.INTEGER },
+    textAlign: { type: SchemaType.STRING },
+    color: { type: SchemaType.STRING },
+    shape: { type: SchemaType.STRING },
+    rotation: { type: SchemaType.INTEGER },
+  },
+  required: ['type', 'x', 'y', 'color'],
+};
+
+const editCardLayoutSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    cannotFulfill: { type: SchemaType.BOOLEAN },
+    message: { type: SchemaType.STRING },
+    frontBg: { type: SchemaType.STRING },
+    backBg: { type: SchemaType.STRING },
+    front: {
+      type: SchemaType.ARRAY,
+      items: editElementSchema,
+    },
+    back: {
+      type: SchemaType.ARRAY,
+      items: editElementSchema,
+    },
+  },
+  required: ['cannotFulfill'],
+};
+
 async function callGeminiModel(
   modelName: string,
   prompt: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  schema: any = cardLayoutSchema
 ) {
   let model = getGenerativeModel(
     ai,
@@ -182,7 +221,7 @@ async function callGeminiModel(
       model: modelName,
       generationConfig: {
         responseMimeType: 'application/json',
-        responseSchema: cardLayoutSchema,
+        responseSchema: schema,
         temperature: 0.7,
         maxOutputTokens: 2000,
         thinkingConfig: {
@@ -207,7 +246,7 @@ async function callGeminiModel(
           model: modelName,
           generationConfig: {
             responseMimeType: 'application/json',
-            responseSchema: cardLayoutSchema,
+            responseSchema: schema,
             temperature: 0.7,
             maxOutputTokens: 2000,
           },
@@ -220,6 +259,89 @@ async function callGeminiModel(
       return await fallbackModel.generateContent(prompt);
     }
     throw err;
+  }
+}
+
+async function executePromptWithRetries(
+  prompt: string,
+  schema: any,
+  fallbackErrorMessage: string,
+  logTag: string,
+  signal?: AbortSignal
+): Promise<any> {
+  let response: any = null;
+  let lastError: any = null;
+
+  // 1. Primary Model: Initial attempt + up to 2 retries on 500, 503, 429 / high demand
+  const retryDelays = [2000, 4000];
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    try {
+      if (signal?.aborted) throw new Error('USER_CANCELLED');
+      response = await callGeminiModel(PRIMARY_MODEL, prompt, signal, schema);
+      lastError = null;
+      break;
+    } catch (err: any) {
+      lastError = err;
+      console.error(`[${logTag}] ${PRIMARY_MODEL} attempt ${attempt + 1} error:`, err);
+
+      if (signal?.aborted) {
+        if (signal.reason === 'TIMEOUT' || String(err).includes('taking too long') || String(err).includes('DEADLINE_EXCEEDED')) {
+          throw new Error('This is taking too long. Please try again.');
+        }
+        throw new Error('USER_CANCELLED');
+      }
+
+      if (attempt < 2 && isHighDemandError(err)) {
+        await sleep(retryDelays[attempt], signal);
+      } else {
+        break;
+      }
+    }
+  }
+
+  // 2. Backup Model: Try once if primary model failed
+  if (!response && BACKUP_MODEL) {
+    try {
+      if (signal?.aborted) throw new Error('USER_CANCELLED');
+      console.warn(`[${logTag}] Primary model failed. Attempting backup model: ${BACKUP_MODEL}`);
+      response = await callGeminiModel(BACKUP_MODEL, prompt, signal, schema);
+      lastError = null;
+    } catch (backupErr: any) {
+      lastError = backupErr;
+      console.error(`[${logTag}] Backup model ${BACKUP_MODEL} error:`, backupErr);
+    }
+  }
+
+  if (!response) {
+    if (signal?.aborted) {
+      if (signal.reason === 'TIMEOUT' || String(lastError).includes('taking too long') || String(lastError).includes('DEADLINE_EXCEEDED')) {
+        throw new Error('This is taking too long. Please try again.');
+      }
+      throw new Error('USER_CANCELLED');
+    }
+    if (isHighDemandError(lastError)) {
+      throw new Error('Our AI is very busy right now. Please try again in a minute.');
+    }
+    throw new Error(fallbackErrorMessage);
+  }
+
+  let text = '';
+  try {
+    text = response.response.text();
+  } catch (textErr: any) {
+    console.error(`[${logTag}] Failed to extract text from Gemini response:`, textErr);
+    throw new Error(fallbackErrorMessage);
+  }
+
+  if (!text) {
+    throw new Error(fallbackErrorMessage);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (jsonErr: any) {
+    console.error(`[${logTag}] Failed to parse Gemini response as JSON:`, jsonErr, 'Raw text:', text);
+    throw new Error(fallbackErrorMessage);
   }
 }
 
@@ -446,81 +568,13 @@ CANVAS ELEMENT SPECIFICATIONS:
 Return only the JSON layout.
 `.trim();
 
-  let response: any = null;
-  let lastError: any = null;
-
-  // 1. Primary Model: Initial attempt + up to 2 retries on 500, 503, 429 / high demand
-  const retryDelays = [2000, 4000];
-  for (let attempt = 0; attempt <= 2; attempt++) {
-    try {
-      if (signal?.aborted) throw new Error('USER_CANCELLED');
-      response = await callGeminiModel(PRIMARY_MODEL, prompt, signal);
-      lastError = null;
-      break;
-    } catch (err: any) {
-      lastError = err;
-      console.error(`[AI Generation] ${PRIMARY_MODEL} attempt ${attempt + 1} error:`, err);
-
-      if (signal?.aborted) {
-        if (signal.reason === 'TIMEOUT' || String(err).includes('taking too long') || String(err).includes('DEADLINE_EXCEEDED')) {
-          throw new Error('This is taking too long. Please try again.');
-        }
-        throw new Error('USER_CANCELLED');
-      }
-
-      if (attempt < 2 && isHighDemandError(err)) {
-        await sleep(retryDelays[attempt], signal);
-      } else {
-        break;
-      }
-    }
-  }
-
-  // 2. Backup Model: Try once if primary model failed
-  if (!response && BACKUP_MODEL) {
-    try {
-      if (signal?.aborted) throw new Error('USER_CANCELLED');
-      console.warn(`[AI Generation] Primary model failed. Attempting backup model: ${BACKUP_MODEL}`);
-      response = await callGeminiModel(BACKUP_MODEL, prompt, signal);
-      lastError = null;
-    } catch (backupErr: any) {
-      lastError = backupErr;
-      console.error(`[AI Generation] Backup model ${BACKUP_MODEL} error:`, backupErr);
-    }
-  }
-
-  if (!response) {
-    if (signal?.aborted) {
-      if (signal.reason === 'TIMEOUT' || String(lastError).includes('taking too long') || String(lastError).includes('DEADLINE_EXCEEDED')) {
-        throw new Error('This is taking too long. Please try again.');
-      }
-      throw new Error('USER_CANCELLED');
-    }
-    if (isHighDemandError(lastError)) {
-      throw new Error('Our AI is very busy right now. Please try again in a minute.');
-    }
-    throw new Error("We couldn't create your card. Please try again.");
-  }
-
-  let text = '';
-  try {
-    text = response.response.text();
-  } catch (textErr: any) {
-    console.error('Failed to extract text from Gemini response:', textErr);
-    throw new Error("We couldn't create your card. Please try again.");
-  }
-
-  if (!text) {
-    throw new Error("We couldn't create your card. Please try again.");
-  }
-
-  let rawData: any;
-  try {
-    rawData = JSON.parse(text);
-  } catch (jsonErr: any) {
-    console.error('Failed to parse Gemini response as JSON:', jsonErr, 'Raw text:', text);
-    throw new Error("We couldn't create your card. Please try again.");
-  }
+  const rawData = await executePromptWithRetries(
+    prompt,
+    cardLayoutSchema,
+    "We couldn't create your card. Please try again.",
+    'AI Generation',
+    signal
+  );
 
   // Validate and sanitize the generated card layout
   try {
@@ -789,5 +843,348 @@ function sanitizeGeneratedLayout(raw: any, input: AiCardPromptInput): GeneratedC
       },
     },
     selectedMaterialId: materialId,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// EDIT BY ASKING (NATURAL LANGUAGE CARD EDITING)
+// ---------------------------------------------------------------------------
+
+export interface AiCardEditInput {
+  cardData: {
+    front: CardState;
+    back: CardState;
+  };
+  materialId: string;
+  materialCategory: 'plastic' | 'metal' | 'wood';
+  cardWidth: number;
+  cardHeight: number;
+  userRequest: string;
+  recentRequests: string[];
+}
+
+export interface EditedCardResult {
+  cannotFulfill: boolean;
+  message?: string;
+  cardData?: {
+    front: CardState;
+    back: CardState;
+  };
+}
+
+function serializeSideForEdit(side: CardState) {
+  return side.elements
+    .filter((el) => el.type !== 'drawing')
+    .map((el) => {
+      const serialized: Record<string, any> = {
+        id: el.id,
+        type: el.type,
+        x: Math.round(el.x),
+        y: Math.round(el.y),
+        color: el.color,
+      };
+      if (el.width !== undefined) serialized.width = Math.round(el.width);
+      if (el.height !== undefined) serialized.height = Math.round(el.height);
+      if (el.rotation) serialized.rotation = Math.round(el.rotation);
+      if (el.type === 'text') {
+        serialized.text = el.content || '';
+        serialized.fontSize = el.fontSize || 16;
+        if (el.textAlign) serialized.textAlign = el.textAlign;
+      } else if (el.type === 'icon') {
+        serialized.text = el.iconId || 'contactless';
+      } else if (el.type === 'shape') {
+        serialized.shape = (el.borderRadius || 0) >= 999 ? 'circle' : 'rectangle';
+      }
+      // Note: imageUrl is intentionally omitted so base64 payloads are never sent to Gemini
+      return serialized;
+    });
+}
+
+function isRemovalRequest(request: string): boolean {
+  return /(\bremove\b|\bdelete\b|\bhide\b|\bclear\b|\bdrop\b|\bwithout\b|\bapagar\b|\bremover\b|\bexcluir\b|\beliminar\b|\btirar\b|\blimpar\b|\bsem\b)/i.test(
+    request
+  );
+}
+
+export async function editCardWithAi(
+  input: AiCardEditInput,
+  signal?: AbortSignal
+): Promise<EditedCardResult> {
+  const cardW = input.cardWidth || 428;
+  const cardH = input.cardHeight || 270;
+  const safeMaxX = Math.max(40, cardW - 24);
+  const safeMaxY = Math.max(40, cardH - 16);
+
+  const currentDesignJson = JSON.stringify({
+    frontBg: input.cardData.front.bgColor,
+    backBg: input.cardData.back.bgColor,
+    front: serializeSideForEdit(input.cardData.front),
+    back: serializeSideForEdit(input.cardData.back),
+  });
+
+  const historyBlock =
+    input.recentRequests.length > 0
+      ? `RECENT EDIT REQUESTS (oldest to newest):\n${input.recentRequests
+          .slice(-3)
+          .map((req, idx) => `${idx + 1}. "${req}"`)
+          .join('\n')}`
+      : 'RECENT EDIT REQUESTS: None';
+
+  const matchingMaterial = MATERIALS.find((m) => m.id === input.materialId);
+  const engraveRule =
+    input.materialCategory === 'metal' || input.materialCategory === 'wood'
+      ? `Material is ${input.materialCategory} (${matchingMaterial?.name || input.materialId}). Background MUST stay "${matchingMaterial?.bgColor || input.cardData.front.bgColor}" and ALL elements MUST use color "${matchingMaterial?.engraveColor || '#3a4048'}".`
+      : `Material is plastic (${input.materialId}). Print-safe colors allowed for plastic backgrounds and elements.`;
+
+  const prompt = `
+You are editing an existing NFC card design in JSON format.
+The user may write in English or Portuguese.
+
+CRITICAL RULES:
+- Change only what the user asked for. Keep everything else exactly as it is.
+- Never add text, icons or elements the user did not ask for.
+- Keep every element inside the safe margins unless it is intentionally cropped.
+- Metal and wood: no colours, engraved look only.
+- Preserve every element's "id" field on all existing elements.
+- For "image" elements (the user's uploaded logo), never remove or replace the image; only change x, y, width, height, or rotation when asked.
+- Card dimensions: ${cardW}x${cardH}px. Safe margins: x: 24-${safeMaxX}, y: 16-${safeMaxY}.
+- ${engraveRule}
+- If the request is unclear or impossible (for example "add a photo of my shop", adding photos, realistic images, 3D renders, or anything outside card layout/text/colors/sizes/shapes/icons), set "cannotFulfill": true and "message": "I couldn't do that. Try something like 'make the name bigger'.".
+- Otherwise set "cannotFulfill": false and return the full updated card design ("frontBg", "backBg", "front", "back").
+
+${historyBlock}
+
+CURRENT REQUEST:
+"${input.userRequest}"
+
+CURRENT DESIGN JSON:
+${currentDesignJson}
+
+Icon names for icon elements ("text" field): contactless, nfc, review, menu, phone, mail, globe, insta, share.
+Shape names for shape elements ("shape" field): rectangle, circle, pill.
+
+Return only the JSON result.
+`.trim();
+
+  const rawData = await executePromptWithRetries(
+    prompt,
+    editCardLayoutSchema,
+    "We couldn't apply that change. Please try again.",
+    'AI Edit',
+    signal
+  );
+
+  try {
+    return sanitizeEditedLayout(rawData, input);
+  } catch (valErr: any) {
+    console.error('[AI Edit] Layout validation error:', valErr);
+    throw new Error("We couldn't apply that change. Please try again.");
+  }
+}
+
+function sanitizeEditedLayout(raw: any, input: AiCardEditInput): EditedCardResult {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid response structure');
+  }
+
+  if (raw.cannotFulfill === true) {
+    return {
+      cannotFulfill: true,
+      message: "I couldn't do that. Try something like 'make the name bigger'.",
+    };
+  }
+
+  if (!Array.isArray(raw.front) || !Array.isArray(raw.back)) {
+    throw new Error('Missing front or back arrays');
+  }
+
+  const cardW = input.cardWidth || 428;
+  const cardH = input.cardHeight || 270;
+  const matchingMaterial = MATERIALS.find((m) => m.id === input.materialId);
+  const isEngraved =
+    input.materialCategory === 'metal' ||
+    input.materialCategory === 'wood' ||
+    isEngravedMaterial(matchingMaterial);
+
+  const frontBg = isEngraved && matchingMaterial
+    ? matchingMaterial.bgColor
+    : typeof raw.frontBg === 'string' && raw.frontBg.trim()
+    ? raw.frontBg.trim()
+    : input.cardData.front.bgColor;
+
+  const backBg = isEngraved && matchingMaterial
+    ? matchingMaterial.bgColor
+    : typeof raw.backBg === 'string' && raw.backBg.trim()
+    ? raw.backBg.trim()
+    : input.cardData.back.bgColor;
+
+  const allowRemoval = isRemovalRequest(input.userRequest);
+
+  const sanitizeEditedSide = (rawList: any[], origSide: CardState, sideName: 'front' | 'back'): CardState => {
+    const origById = new Map<string, ElementData>(origSide.elements.map((e) => [e.id, e]));
+    const origImages = origSide.elements.filter((e) => e.type === 'image' && e.imageUrl);
+    const origDrawings = origSide.elements.filter((e) => e.type === 'drawing');
+    const usedOrigIds = new Set<string>();
+
+    const sanitizedElements: ElementData[] = [];
+
+    rawList.forEach((el: any, index: number) => {
+      if (!el || typeof el !== 'object') return;
+
+      const rawType = ['text', 'shape', 'icon', 'image'].includes(el.type) ? el.type : null;
+      let origMatch = typeof el.id === 'string' ? origById.get(el.id) : undefined;
+
+      // Fallback match for an un-removed image element on the same side if AI omitted its id
+      if (!origMatch && rawType === 'image') {
+        origMatch = origImages.find((imgEl) => !usedOrigIds.has(imgEl.id));
+      }
+
+      const type: ElementData['type'] = origMatch?.type || rawType || 'text';
+
+      // Never allow AI to invent a brand-new image without an existing uploaded image
+      if (type === 'image' && (!origMatch || !origMatch.imageUrl)) {
+        return;
+      }
+
+      if (origMatch) {
+        usedOrigIds.add(origMatch.id);
+      }
+
+      const rawW = Number(el.width);
+      const rawH = Number(el.height);
+      const defaultW = origMatch?.width ?? (type === 'shape' ? 100 : type === 'image' ? 100 : type === 'icon' ? 40 : 140);
+      const defaultH = origMatch?.height ?? (type === 'shape' ? 40 : type === 'image' ? 80 : type === 'icon' ? 40 : 28);
+
+      let width = Number.isFinite(rawW) && rawW > 0 ? Math.round(rawW) : defaultW;
+      let height: number | undefined = Number.isFinite(rawH) && rawH > 0 ? Math.round(rawH) : origMatch?.height ?? defaultH;
+
+      if (type === 'image' && origMatch) {
+        const origW = origMatch.width || 100;
+        const origH = origMatch.height || origW;
+        const ar = origW / Math.max(1, origH);
+        let targetW = Number.isFinite(rawW) && rawW > 0 ? rawW : origW;
+        if ((!Number.isFinite(rawW) || rawW <= 0) && Number.isFinite(rawH) && rawH > 0 && origMatch.height) {
+          targetW = rawH * ar;
+        }
+        width = Math.max(24, Math.min(Math.round(targetW), Math.round(cardW * 1.15)));
+        height = origMatch.height ? Math.round(width / Math.max(0.1, ar)) : undefined;
+      } else if (type === 'icon') {
+        width = Math.max(20, Math.min(width, 80));
+        height = width;
+      }
+
+      const rawX = Number(el.x);
+      const rawY = Number(el.y);
+      const fallbackX = origMatch ? origMatch.x : 30;
+      const fallbackY = origMatch ? origMatch.y : 30;
+      const candidateX = Number.isFinite(rawX) ? Math.round(rawX) : fallbackX;
+      const candidateY = Number.isFinite(rawY) ? Math.round(rawY) : fallbackY;
+
+      let x: number;
+      let y: number;
+      if (type === 'text' || type === 'icon') {
+        // Respect safe margins on non-cropped elements
+        const effW = Math.min(width, Math.max(40, cardW - 48));
+        const effH = Math.min(height ?? 28, Math.max(24, cardH - 32));
+        x = Math.max(24, Math.min(candidateX, Math.max(24, cardW - effW - 24)));
+        y = Math.max(16, Math.min(candidateY, Math.max(16, cardH - effH - 16)));
+      } else {
+        // Allow intentional cropping/bleed on shapes and images
+        x = Math.max(-120, Math.min(candidateX, cardW - 16));
+        y = Math.max(-100, Math.min(candidateY, cardH - 16));
+      }
+
+      let color =
+        typeof el.color === 'string' && el.color.trim()
+          ? el.color.trim()
+          : origMatch?.color || (origSide.bgColor === '#18181b' ? '#ffffff' : '#18181b');
+      if (isEngraved && matchingMaterial) {
+        color = matchingMaterial.engraveColor || '#3a4048';
+      }
+
+      const elementId = origMatch ? origMatch.id : `ai-edit-${sideName}-${index + 1}-${Date.now().toString().slice(-4)}`;
+
+      const cleanEl: ElementData = {
+        ...(origMatch || {}),
+        id: elementId,
+        type,
+        x,
+        y,
+        z: origMatch?.z ?? index + 1,
+        width,
+        height,
+        color,
+        rotation: Number.isFinite(Number(el.rotation)) ? Math.round(Number(el.rotation)) : origMatch?.rotation || 0,
+        opacity: origMatch?.opacity ?? 1,
+      };
+
+      if (type === 'text') {
+        const textContent = typeof el.text === 'string' && el.text.trim() ? el.text : origMatch?.content;
+        if (!textContent) return;
+        cleanEl.content = textContent;
+        const rawFontSize = Number(el.fontSize);
+        cleanEl.fontSize = Math.max(
+          10,
+          Math.min(Number.isFinite(rawFontSize) && rawFontSize > 0 ? Math.round(rawFontSize) : origMatch?.fontSize || 16, 64)
+        );
+        cleanEl.fontFamily = origMatch?.fontFamily || 'var(--font-sans)';
+        cleanEl.textAlign = ['left', 'center', 'right'].includes(el.textAlign)
+          ? el.textAlign
+          : origMatch?.textAlign || 'left';
+        cleanEl.textTransform = origMatch?.textTransform || 'none';
+      } else if (type === 'icon') {
+        cleanEl.iconId = typeof el.text === 'string' && el.text.trim() ? el.text.trim() : origMatch?.iconId || 'contactless';
+      } else if (type === 'shape') {
+        if (el.shape === 'circle' || el.shape === 'pill') {
+          cleanEl.borderRadius = 999;
+        } else if (el.shape === 'rectangle') {
+          cleanEl.borderRadius =
+            origMatch?.borderRadius && origMatch.borderRadius < 999 ? origMatch.borderRadius : 0;
+        } else {
+          cleanEl.borderRadius = origMatch?.borderRadius ?? 0;
+        }
+      } else if (type === 'image' && origMatch) {
+        // Never alter the uploaded logo image asset itself
+        cleanEl.imageUrl = origMatch.imageUrl;
+      }
+
+      sanitizedElements.push(cleanEl);
+    });
+
+    // Retain any uploaded logo image if the AI accidentally omitted it without a removal request
+    if (!allowRemoval) {
+      origImages.forEach((imgEl) => {
+        if (!usedOrigIds.has(imgEl.id)) {
+          sanitizedElements.push({ ...imgEl });
+        }
+      });
+    }
+
+    // Preserve hand-drawn strokes on the side (enforcing engraved color if applicable)
+    origDrawings.forEach((drawEl) => {
+      sanitizedElements.push({
+        ...drawEl,
+        color: isEngraved && matchingMaterial ? matchingMaterial.engraveColor || drawEl.color : drawEl.color,
+      });
+    });
+
+    // Ensure sequential z-order if needed while preserving relative stacking
+    sanitizedElements.sort((a, b) => (a.z || 0) - (b.z || 0));
+
+    return {
+      bgColor: sideName === 'front' ? frontBg : backBg,
+      elements: sanitizedElements,
+    };
+  };
+
+  const frontState = sanitizeEditedSide(raw.front, input.cardData.front, 'front');
+  const backState = sanitizeEditedSide(raw.back, input.cardData.back, 'back');
+
+  return {
+    cannotFulfill: false,
+    cardData: {
+      front: frontState,
+      back: backState,
+    },
   };
 }

@@ -30,6 +30,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // users/{userId}/editUsage/{dateKey}: daily AI edit counter (max 30/day, strictly increment by 1)
+    match /users/{userId}/editUsage/{dateKey} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null && request.auth.uid == userId
+                    && request.resource.data.count == 1
+                    && request.resource.data.date is string;
+
+      allow update: if request.auth != null && request.auth.uid == userId
+                    && request.resource.data.count == resource.data.count + 1
+                    && request.resource.data.count <= 30;
+
+      allow delete: if false;
+    }
+
     // orders/{orderId}: anyone can create, with field types and sizes validated. Only the admin account can read. Nobody can update or delete.
     match /orders/{orderId} {
       allow create: if request.resource.data.name is string

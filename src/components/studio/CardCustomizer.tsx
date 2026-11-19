@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   SmartphoneNfc, Type, Trash2, RectangleHorizontal, RectangleVertical, Image as ImageIcon, ArrowUp, ArrowDown,
   ChevronDown, ChevronRight, ChevronUp, Shapes, LayoutTemplate, Palette, PenTool, Eraser, Highlighter, Layers,
-  Check, X, Copy, Save, Box, Download, Undo2, Redo2, Sparkles, RefreshCw
+  Check, X, Copy, Save, Box, Download, Undo2, Redo2, Sparkles, RefreshCw, Send
 } from 'lucide-react';
-import { dataService as db, User as DbUser, ImageAsset, DAILY_AI_LIMIT } from '../../lib/dataService';
-import { generateCardWithAi, AiCardPromptInput } from '../../lib/aiCardService';
+import { dataService as db, User as DbUser, ImageAsset, DAILY_AI_LIMIT, DAILY_AI_EDIT_LIMIT } from '../../lib/dataService';
+import { generateCardWithAi, editCardWithAi, AiCardPromptInput } from '../../lib/aiCardService';
 import AiCardGeneratorTab from './AiCardGeneratorTab';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -80,6 +80,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       setUser(currentUser);
       if (currentUser) {
         db.getImagesByUser(currentUser.id).then(setUserImages);
+        db.getDailyAiEditUsage(currentUser.id).then(setDailyEditUsage).catch(() => {});
 
         const projectId = searchParams.get('project');
         const urlType = searchParams.get('type');
@@ -129,6 +130,8 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             }
           }
         }
+      } else {
+        setDailyEditUsage(0);
       }
     });
 
@@ -172,9 +175,17 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   const [pendingAiInput, setPendingAiInput] = useState<AiCardPromptInput | null>(null);
   const aiAbortControllerRef = useRef<AbortController | null>(null);
 
-  // Warn user if leaving page while AI generation is in progress
+  // "Edit by asking" AI state
+  const [editPrompt, setEditPrompt] = useState('');
+  const [isEditingAI, setIsEditingAI] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editHistory, setEditHistory] = useState<string[]>([]);
+  const [dailyEditUsage, setDailyEditUsage] = useState<number>(0);
+  const editAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Warn user if leaving page while AI generation or edit is in progress
   useEffect(() => {
-    if (!isGeneratingAI) return;
+    if (!isGeneratingAI && !isEditingAI) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
@@ -184,7 +195,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isGeneratingAI]);
+  }, [isGeneratingAI, isEditingAI]);
 
   const handleCancelAi = () => {
     if (aiAbortControllerRef.current) {
@@ -194,6 +205,15 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     setIsGeneratingAI(false);
     setPendingAiInput(null);
     setAiError(null);
+  };
+
+  const handleCancelAiEdit = () => {
+    if (editAbortControllerRef.current) {
+      editAbortControllerRef.current.abort('CANCELLED');
+      editAbortControllerRef.current = null;
+    }
+    setIsEditingAI(false);
+    setEditError(null);
   };
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>(DEFAULT_PLASTIC_MATERIAL_ID);
@@ -865,6 +885,139 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     }
 
     await executeAiCardGeneration(input);
+  };
+
+  const handleAiEdit = async (requestText: string) => {
+    const trimmed = requestText.trim();
+    if (!trimmed || isEditingAI || isGeneratingAI) return;
+
+    setEditError(null);
+    if (!user) {
+      setEditError('Please sign in to edit your card with AI.');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    const controller = new AbortController();
+    editAbortControllerRef.current = controller;
+
+    const timeoutId = setTimeout(() => {
+      controller.abort('TIMEOUT');
+    }, 30000);
+
+    setIsEditingAI(true);
+
+    try {
+      // Check daily edit limit from Firestore
+      let currentEditUsage = 0;
+      try {
+        currentEditUsage = await db.getDailyAiEditUsage(user.id);
+        setDailyEditUsage(currentEditUsage);
+      } catch (readErr: any) {
+        console.error('[Firestore Edit Counter Read Error]:', readErr);
+        throw new Error("We couldn't check your daily edit limit. Please try again.");
+      }
+
+      if (currentEditUsage >= DAILY_AI_EDIT_LIMIT) {
+        throw new Error("You've reached today's edit limit. Come back tomorrow.");
+      }
+
+      const targetCardW = productType === 'board' ? 300 : orientation === 'horizontal' ? 428 : 270;
+      const targetCardH = productType === 'board' ? 450 : orientation === 'horizontal' ? 270 : 428;
+      const materialCategory: 'plastic' | 'metal' | 'wood' =
+        productType === 'board' ? 'plastic' : selectedMaterial?.category || 'plastic';
+
+      const result = await editCardWithAi(
+        {
+          cardData,
+          materialId: selectedMaterialId,
+          materialCategory,
+          cardWidth: targetCardW,
+          cardHeight: targetCardH,
+          userRequest: trimmed,
+          recentRequests: editHistory.slice(-3),
+        },
+        controller.signal
+      );
+
+      if (result.cannotFulfill) {
+        setEditError(result.message || "I couldn't do that. Try something like 'make the name bigger'.");
+        return;
+      }
+
+      if (!result.cardData) {
+        throw new Error("We couldn't apply that change. Please try again.");
+      }
+
+      // Apply change as one undoable step
+      recordHistoryRef.current();
+      setCardData(result.cardData);
+      if (isPlastic) {
+        setPlasticBgColors({
+          front: result.cardData.front.bgColor,
+          back: result.cardData.back.bgColor,
+        });
+      }
+      setSelectedElementId((prev) => {
+        if (!prev) return null;
+        const stillExists =
+          result.cardData!.front.elements.some((el) => el.id === prev) ||
+          result.cardData!.back.elements.some((el) => el.id === prev);
+        return stillExists ? prev : null;
+      });
+      setEditHistory((prev) => [...prev, trimmed].slice(-3));
+      setEditPrompt('');
+
+      // Count edit ONLY after successful application
+      try {
+        const updatedUsage = await db.incrementDailyAiEditUsage(user.id);
+        setDailyEditUsage(updatedUsage);
+      } catch (incErr: any) {
+        console.error('[Firestore Edit Counter Increment Error]:', incErr);
+      }
+    } catch (err: any) {
+      if (controller.signal.aborted) {
+        if (controller.signal.reason === 'TIMEOUT' || String(err?.message || err).includes('taking too long')) {
+          setEditError('This is taking too long. Please try again.');
+          return;
+        }
+        setEditError(null);
+        return;
+      }
+
+      const rawMsg = err?.message || String(err || '');
+      if (rawMsg === 'USER_CANCELLED') {
+        setEditError(null);
+        return;
+      }
+
+      console.error('[AI Card Edit Full Error]:', err);
+
+      if (rawMsg.includes('taking too long') || rawMsg.includes('DEADLINE_EXCEEDED')) {
+        setEditError('This is taking too long. Please try again.');
+      } else if (
+        rawMsg.includes('busy right now') ||
+        rawMsg.includes('500') ||
+        rawMsg.includes('503') ||
+        rawMsg.includes('429') ||
+        rawMsg.includes('RESOURCE_EXHAUSTED') ||
+        rawMsg.includes('high demand') ||
+        rawMsg.includes('overloaded') ||
+        rawMsg.includes('UNAVAILABLE')
+      ) {
+        setEditError('Our AI is very busy right now. Please try again in a minute.');
+      } else if (rawMsg.includes("today's edit limit")) {
+        setEditError("You've reached today's edit limit. Come back tomorrow.");
+      } else if (rawMsg.includes("couldn't check your daily edit limit")) {
+        setEditError("We couldn't check your daily edit limit. Please try again.");
+      } else {
+        setEditError("We couldn't apply that change. Please try again.");
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      editAbortControllerRef.current = null;
+      setIsEditingAI(false);
+    }
   };
 
   const moveZIndex = (id: string, direction: 'up' | 'down') => {
@@ -1880,12 +2033,13 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           </div>
         </div>
 
-        {/* Central Canvas Area */}
-        <div
-          ref={canvasAreaRef}
-          className="order-1 min-[900px]:order-3 flex-1 min-w-0 min-h-0 bg-[#0a0a0a] relative flex items-center justify-center overflow-hidden"
-          onClick={() => setSelectedElementId(null)}
-        >
+        {/* Central Workspace Column (Canvas Viewport + Edit by Asking) */}
+        <div className="order-1 min-[900px]:order-3 flex-1 min-w-0 min-h-0 bg-[#0a0a0a] flex flex-col overflow-hidden">
+          <div
+            ref={canvasAreaRef}
+            className="flex-1 min-w-0 min-h-0 relative flex items-center justify-center overflow-hidden"
+            onClick={() => setSelectedElementId(null)}
+          >
           {showSaveAccountOffer && user && !searchParams.get('project') && (
             <div
               className="absolute top-3 left-4 right-4 z-40 bg-[#161616]/95 border border-white/20 rounded-xl px-4 py-2.5 flex items-center justify-between shadow-2xl backdrop-blur-md"
@@ -2135,16 +2289,18 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                   </div>
                 )}
 
-                {/* AI Generation Loading Overlay on Card */}
-                {isGeneratingAI && (
+                {/* AI Generation / Edit Loading Overlay on Card */}
+                {(isGeneratingAI || isEditingAI) && (
                   <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in duration-200">
                     <div className="w-9 h-9 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
                     <span className="text-white font-semibold text-xs tracking-wider uppercase">
-                      Creating your card... this takes a few seconds.
+                      {isEditingAI
+                        ? 'Applying your change...'
+                        : 'Creating your card... this takes a few seconds.'}
                     </span>
                     <button
                       type="button"
-                      onClick={handleCancelAi}
+                      onClick={isEditingAI ? handleCancelAiEdit : handleCancelAi}
                       className="mt-4 px-4 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-xs font-medium transition-colors cursor-pointer"
                     >
                       Cancel
@@ -2170,6 +2326,97 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             />
             <div className="w-1.5 h-1.5 rounded-full bg-gray-500 ml-2.5 mr-3"></div>
             <span className="text-white text-xs font-bold w-10 text-right">{zoom}%</span>
+          </div>
+          </div>
+
+          {/* "Edit by asking" Prompt Bar Below the Card */}
+          <div
+            className="w-full px-3 sm:px-6 pb-2.5 pt-1.5 flex flex-col items-center shrink-0 z-30 bg-[#0a0a0a] border-t border-white/5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full max-w-xl flex flex-col gap-1.5">
+              {/* Last 3 requests history */}
+              {editHistory.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-500 px-1">
+                  {editHistory.slice(-3).map((req, idx) => (
+                    <span key={`${idx}-${req}`} className="truncate max-w-[200px]">
+                      • {req}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* 4 quick suggestion buttons */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {['Bigger logo', 'More space', 'Bolder', 'Change the colours'].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    disabled={isEditingAI || isGeneratingAI}
+                    onClick={() => {
+                      setEditPrompt(suggestion);
+                      handleAiEdit(suggestion);
+                    }}
+                    className="px-2.5 py-1 rounded-full bg-[#151515] hover:bg-white/10 border border-white/10 hover:border-white/25 text-[11px] text-gray-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+
+              {/* Single text field + Send button */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAiEdit(editPrompt);
+                }}
+                className="flex items-center gap-1.5 bg-[#151515] border border-white/15 focus-within:border-white/40 rounded-xl px-3 py-1.5 transition-colors"
+              >
+                <input
+                  type="text"
+                  value={editPrompt}
+                  onChange={(e) => {
+                    setEditPrompt(e.target.value);
+                    if (editError) setEditError(null);
+                  }}
+                  disabled={isEditingAI || isGeneratingAI}
+                  placeholder="Ask for a change... (e.g. make the logo bigger)"
+                  aria-label="Ask for a change"
+                  className="flex-1 bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={isEditingAI || isGeneratingAI || !editPrompt.trim()}
+                  aria-label="Send edit request"
+                  title="Send"
+                  className="p-1.5 rounded-lg bg-white text-black hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              </form>
+
+              {/* Error feedback and daily edit quota */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                {editError ? (
+                  <span className="text-[11px] text-red-400 leading-tight">{editError}</span>
+                ) : (
+                  <span />
+                )}
+                {user ? (
+                  <span className="text-[11px] text-gray-500 shrink-0 ml-auto">
+                    {Math.max(0, DAILY_AI_EDIT_LIMIT - dailyEditUsage)} edits left today
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="text-[11px] text-gray-400 hover:text-white underline shrink-0 ml-auto cursor-pointer"
+                  >
+                    Sign in to edit by asking
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
