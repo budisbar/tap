@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Loader2, Upload, X, RefreshCw, AlertCircle, Check } from 'lucide-react';
 import { User, dataService, DAILY_AI_LIMIT } from '../../lib/dataService';
 import { AiCardPromptInput, analyzeLogo } from '../../lib/aiCardService';
+import VoiceMicButton from './VoiceMicButton';
 
 interface AiCardGeneratorTabProps {
   user: User | null;
@@ -13,6 +14,8 @@ interface AiCardGeneratorTabProps {
   aiError?: { friendly: string } | null;
   onClearAiError?: () => void;
   isReplaceConfirmOpen?: boolean;
+  language?: 'pt' | 'en';
+  onLanguageChange?: (lang: 'pt' | 'en') => void;
 }
 
 const PRESET_COLORS = [
@@ -36,6 +39,8 @@ export default function AiCardGeneratorTab({
   aiError,
   onClearAiError,
   isReplaceConfirmOpen,
+  language: propLanguage,
+  onLanguageChange,
 }: AiCardGeneratorTabProps) {
   // Form State
   const [businessName, setBusinessName] = useState('');
@@ -62,7 +67,14 @@ export default function AiCardGeneratorTab({
   const [material, setMaterial] = useState<'plastic' | 'metal' | 'wood'>('plastic');
   const [selectedColors, setSelectedColors] = useState<string[]>(['#ffffff', '#18181b']);
   const [customText, setCustomText] = useState('');
-  const [language, setLanguage] = useState<'pt' | 'en'>('en');
+  const [description, setDescription] = useState('');
+  const [isDescListening, setIsDescListening] = useState(false);
+  const [internalLanguage, setInternalLanguage] = useState<'pt' | 'en'>(propLanguage || 'en');
+  const language = propLanguage ?? internalLanguage;
+  const setLanguage = (nextLang: 'pt' | 'en') => {
+    setInternalLanguage(nextLang);
+    onLanguageChange?.(nextLang);
+  };
 
   // Quota & UI State
   const [dailyUsage, setDailyUsage] = useState<number>(0);
@@ -221,6 +233,7 @@ export default function AiCardGeneratorTab({
       material,
       preferredColors: material === 'plastic' ? selectedColors : undefined,
       customText: customText.trim() || undefined,
+      description: description.trim() || undefined,
       language,
     };
 
@@ -595,6 +608,48 @@ export default function AiCardGeneratorTab({
                 {lang.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* 11. Describe what's in your head */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label
+              htmlFor="ai-head-description"
+              className="block text-[10px] uppercase tracking-widest font-bold text-gray-400"
+            >
+              Describe what&apos;s in your head{' '}
+              <span className="text-gray-500 font-normal">(optional)</span>
+            </label>
+            <span className="text-[10px] font-mono text-gray-500">
+              {description.length}/500
+            </span>
+          </div>
+          <div className="relative">
+            <textarea
+              id="ai-head-description"
+              rows={3}
+              maxLength={500}
+              value={description}
+              onChange={(e) => setDescription(e.target.value.slice(0, 500))}
+              placeholder={
+                isDescListening
+                  ? 'Listening...'
+                  : "Tell us anything: the feeling you want, colours you love, cards you've seen and liked..."
+              }
+              className="w-full bg-[#111] border border-white/15 rounded-lg pl-3.5 pr-10 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-white transition-colors resize-none"
+            />
+            <div className="absolute right-2 bottom-2">
+              <VoiceMicButton
+                language={language}
+                value={description}
+                onChange={(nextVal) => setDescription(nextVal.slice(0, 500))}
+                onListeningChange={setIsDescListening}
+                onError={(msg) => setLocalError({ friendly: msg })}
+                disabled={isGenerating}
+                maxLength={500}
+              />
+            </div>
           </div>
         </div>
 

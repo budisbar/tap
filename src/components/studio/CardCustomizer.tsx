@@ -29,6 +29,7 @@ import FontPicker from './FontPicker';
 import DraggableElement from './DraggableElement';
 import CardPreview from './CardPreview';
 import OrderCardModal from './OrderCardModal';
+import VoiceMicButton from './VoiceMicButton';
 
 interface CardCustomizerProps {
   onBookMeeting?: () => void;
@@ -61,6 +62,133 @@ function StartFromScratchAction({ onClick }: { onClick: () => void }) {
       </button>
     </div>
   );
+}
+
+function getSelectedElementLabel(el: ElementData): string {
+  switch (el.type) {
+    case 'image':
+      return 'Logo';
+    case 'text': {
+      const content = el.content?.trim() || '';
+      return content
+        ? `Text ("${content.slice(0, 22)}${content.length > 22 ? '…' : ''}")`
+        : 'Text';
+    }
+    case 'shape':
+      return (el.borderRadius || 0) >= 999 ? 'Circle' : 'Shape';
+    case 'icon': {
+      const iconLabel = ICONS.find((i) => i.id === el.iconId)?.label || el.iconId || 'Icon';
+      return `Icon (${iconLabel})`;
+    }
+    case 'drawing':
+      return 'Drawing';
+    default:
+      return 'Element';
+  }
+}
+
+function parseHexRgb(color: string): [number, number, number] | null {
+  if (!color) return null;
+  const trimmed = color.trim();
+  const shortMatch = /^#([a-f\d])([a-f\d])([a-f\d])$/i.exec(trimmed);
+  if (shortMatch) {
+    return [
+      parseInt(shortMatch[1] + shortMatch[1], 16),
+      parseInt(shortMatch[2] + shortMatch[2], 16),
+      parseInt(shortMatch[3] + shortMatch[3], 16),
+    ];
+  }
+  const fullMatch = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(trimmed);
+  if (fullMatch) {
+    return [
+      parseInt(fullMatch[1], 16),
+      parseInt(fullMatch[2], 16),
+      parseInt(fullMatch[3], 16),
+    ];
+  }
+  return null;
+}
+
+function getRelativeLuminance([r, g, b]: [number, number, number]): number {
+  const channel = [r, g, b].map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * channel[0] + 0.7152 * channel[1] + 0.0722 * channel[2];
+}
+
+function getContrastRatio(hex1: string, hex2: string): number {
+  const rgb1 = parseHexRgb(hex1);
+  const rgb2 = parseHexRgb(hex2);
+  if (!rgb1 || !rgb2) return 21;
+  const l1 = getRelativeLuminance(rgb1);
+  const l2 = getRelativeLuminance(rgb2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function getSmartEditSuggestions(params: {
+  selectedElement?: ElementData;
+  currentSideState: CardState;
+  cardData: Record<Side, CardState>;
+  cardW: number;
+  cardH: number;
+  isPlastic: boolean;
+  isEngraved: boolean;
+  selectedMaterial: CardMaterial | null;
+}): string[] {
+  if (params.selectedElement) {
+    return ['Bigger', 'Smaller', 'Move up', 'Center it'];
+  }
+
+  const suggestions: string[] = [];
+  const { currentSideState, cardData, cardW, cardH, isPlastic, isEngraved, selectedMaterial } = params;
+  const sidesToInspect = [currentSideState, cardData.front, cardData.back];
+
+  // 1. Logo smaller than about 20% of the card width
+  const hasSmallLogo = sidesToInspect.some((side) =>
+    side.elements.some((el) => el.type === 'image' && (el.width || 100) < cardW * 0.22)
+  );
+  if (hasSmallLogo) {
+    suggestions.push('Bigger logo');
+  }
+
+  // 2. Text with low contrast against the background
+  const hasLowContrastText = sidesToInspect.some((side) => {
+    const bg = isEngraved && selectedMaterial ? selectedMaterial.bgColor : side.bgColor;
+    return side.elements.some(
+      (el) => el.type === 'text' && getContrastRatio(getEffectiveElementColor(el.color, selectedMaterial), bg) < 4.5
+    );
+  });
+  if (hasLowContrastText) {
+    suggestions.push('More contrast');
+  }
+
+  // 3. Many elements or little empty space
+  const totalArea = currentSideState.elements.reduce((acc, el) => {
+    const w = el.width ?? (el.type === 'icon' ? 40 : el.type === 'image' ? 100 : 120);
+    const h = el.height ?? (el.type === 'icon' ? 40 : el.type === 'image' ? 80 : 28);
+    return acc + w * h;
+  }, 0);
+  const isCrowded =
+    currentSideState.elements.length >= 5 ||
+    cardData.front.elements.length >= 5 ||
+    totalArea >= 0.35 * cardW * cardH;
+
+  if (isCrowded) {
+    suggestions.push('More space');
+  } else if (currentSideState.elements.length <= 3) {
+    // 4. Very few elements
+    suggestions.push('Bolder');
+  }
+
+  // 5. Plastic card
+  if (isPlastic) {
+    suggestions.push('Change the colours');
+  }
+
+  return suggestions.slice(0, 4);
 }
 
 export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = {}) {
@@ -178,10 +306,22 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
   // "Edit by asking" AI state
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingAI, setIsEditingAI] = useState(false);
-  const [editError, setEditError] = useState<{ friendly: string; debug?: string } | null>(null);
-  const [editHistory, setEditHistory] = useState<string[]>([]);
+  const [isEditListening, setIsEditListening] = useState(false);
+  const [cardLanguage, setCardLanguage] = useState<'pt' | 'en'>('en');
+  const [editError, setEditError] = useState<{ friendly: string } | null>(null);
+  const [editHistory, setEditHistory] = useState<Array<{ request: string; summary?: string }>>([]);
+  const [lastEditSummary, setLastEditSummary] = useState<string | null>(null);
+  const editSummaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dailyEditUsage, setDailyEditUsage] = useState<number>(0);
   const editAbortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (editSummaryTimerRef.current) {
+        clearTimeout(editSummaryTimerRef.current);
+      }
+    };
+  }, []);
 
   // Warn user if leaving page while AI generation or edit is in progress
   useEffect(() => {
@@ -895,7 +1035,6 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     if (!user) {
       setEditError({
         friendly: 'Please sign in to edit your card with AI.',
-        debug: 'AUTH_REQUIRED: User is not signed in.',
       });
       setIsAuthModalOpen(true);
       return;
@@ -909,6 +1048,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
     }, 30000);
 
     setIsEditingAI(true);
+    setLastEditSummary(null);
+    if (editSummaryTimerRef.current) {
+      clearTimeout(editSummaryTimerRef.current);
+      editSummaryTimerRef.current = null;
+    }
 
     try {
       // Check daily edit limit from Firestore
@@ -918,15 +1062,11 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         setDailyEditUsage(currentEditUsage);
       } catch (readErr: any) {
         console.error('[Firestore Edit Counter Read Error]:', readErr);
-        const err: any = new Error("We couldn't check your daily edit limit. Please try again.");
-        err.debugReason = `${readErr?.code || 'firestore/read-error'}: ${readErr?.message || String(readErr)}`;
-        throw err;
+        throw new Error("We couldn't check your daily edit limit. Please try again.");
       }
 
       if (currentEditUsage >= DAILY_AI_EDIT_LIMIT) {
-        const err: any = new Error("You've reached today's edit limit. Come back tomorrow.");
-        err.debugReason = `LIMIT_REACHED: Used ${currentEditUsage}/${DAILY_AI_EDIT_LIMIT} daily edits.`;
-        throw err;
+        throw new Error("You've reached today's edit limit. Come back tomorrow.");
       }
 
       const targetCardW = productType === 'board' ? 300 : orientation === 'horizontal' ? 428 : 270;
@@ -942,7 +1082,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           cardWidth: targetCardW,
           cardHeight: targetCardH,
           userRequest: trimmed,
-          recentRequests: editHistory.slice(-3),
+          recentRequests: editHistory.slice(-3).map((item) => item.request),
+          selectedElementId: selectedElement ? selectedElement.id : null,
+          selectedSide: activeSide,
         },
         controller.signal
       );
@@ -955,9 +1097,7 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       }
 
       if (!result.cardData) {
-        const err: any = new Error("We couldn't apply that change. Please try again.");
-        err.debugReason = 'EMPTY_CARD_DATA: Validated result contained no cardData.';
-        throw err;
+        throw new Error("We couldn't apply that change. Please try again.");
       }
 
       // Apply change as one undoable step
@@ -976,8 +1116,15 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
           result.cardData!.back.elements.some((el) => el.id === prev);
         return stillExists ? prev : null;
       });
-      setEditHistory((prev) => [...prev, trimmed].slice(-3));
+      setEditHistory((prev) => [...prev, { request: trimmed, summary: result.summary }].slice(-3));
       setEditPrompt('');
+      if (result.summary) {
+        setLastEditSummary(result.summary);
+        editSummaryTimerRef.current = setTimeout(() => {
+          setLastEditSummary(null);
+          editSummaryTimerRef.current = null;
+        }, 5000);
+      }
 
       // Count edit ONLY after successful application
       try {
@@ -991,7 +1138,6 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
         if (controller.signal.reason === 'TIMEOUT' || String(err?.message || err).includes('taking too long')) {
           setEditError({
             friendly: 'This is taking too long. Please try again.',
-            debug: err?.debugReason || 'TIMEOUT: Request exceeded 30s.',
           });
           return;
         }
@@ -1007,13 +1153,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
       console.error('[AI Card Edit Full Error]:', err);
 
-      const debugReason =
-        err?.debugReason || (err?.code ? `${err.code}: ${rawMsg}` : rawMsg);
-
       if (rawMsg.includes('taking too long') || rawMsg.includes('DEADLINE_EXCEEDED')) {
         setEditError({
           friendly: 'This is taking too long. Please try again.',
-          debug: debugReason,
         });
       } else if (
         rawMsg.includes('busy right now') ||
@@ -1027,22 +1169,18 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
       ) {
         setEditError({
           friendly: 'Our AI is very busy right now. Please try again in a minute.',
-          debug: debugReason,
         });
       } else if (rawMsg.includes("today's edit limit")) {
         setEditError({
           friendly: "You've reached today's edit limit. Come back tomorrow.",
-          debug: debugReason,
         });
       } else if (rawMsg.includes("couldn't check your daily edit limit")) {
         setEditError({
           friendly: "We couldn't check your daily edit limit. Please try again.",
-          debug: debugReason,
         });
       } else {
         setEditError({
           friendly: "We couldn't apply that change. Please try again.",
-          debug: debugReason,
         });
       }
     } finally {
@@ -1302,6 +1440,17 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
 
   const cardW = productType === 'board' ? 300 : orientation === 'horizontal' ? 428 : 270;
   const cardH = productType === 'board' ? 450 : orientation === 'horizontal' ? 270 : 428;
+
+  const smartSuggestions = getSmartEditSuggestions({
+    selectedElement,
+    currentSideState,
+    cardData,
+    cardW,
+    cardH,
+    isPlastic,
+    isEngraved,
+    selectedMaterial,
+  });
 
   const padX = canvasSize.width > 0 && canvasSize.width < 640 ? 40 : 96;
   const padY = canvasSize.height > 0 && canvasSize.height < 500 ? 88 : 128;
@@ -1637,6 +1786,8 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                     aiError={aiError}
                     onClearAiError={() => setAiError(null)}
                     isReplaceConfirmOpen={isReplaceConfirmOpen}
+                    language={cardLanguage}
+                    onLanguageChange={setCardLanguage}
                   />
                 </div>
               )}
@@ -2367,34 +2518,62 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full max-w-xl flex flex-col gap-1.5">
+              {/* Temporary AI change summary after applying an edit */}
+              {lastEditSummary && (
+                <div className="text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1 animate-in fade-in duration-200">
+                  {lastEditSummary}
+                </div>
+              )}
+
               {/* Last 3 requests history */}
               {editHistory.length > 0 && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-500 px-1">
-                  {editHistory.slice(-3).map((req, idx) => (
-                    <span key={`${idx}-${req}`} className="truncate max-w-[200px]">
-                      • {req}
+                <div className="flex flex-col gap-0.5 text-[11px] text-gray-500 px-1">
+                  {editHistory.slice(-3).map((item, idx) => (
+                    <span key={`${idx}-${item.request}`} className="truncate">
+                      • {item.request}
+                      {item.summary ? ` — ${item.summary}` : ''}
                     </span>
                   ))}
                 </div>
               )}
 
-              {/* 4 quick suggestion buttons */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {['Bigger logo', 'More space', 'Bolder', 'Change the colours'].map((suggestion) => (
+              {/* Selected element indicator */}
+              {selectedElement && (
+                <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] text-gray-300 w-fit gap-2">
+                  <span>
+                    Editing: <strong className="text-white font-semibold">{getSelectedElementLabel(selectedElement)}</strong>
+                  </span>
                   <button
-                    key={suggestion}
                     type="button"
-                    disabled={isEditingAI || isGeneratingAI}
-                    onClick={() => {
-                      setEditPrompt(suggestion);
-                      handleAiEdit(suggestion);
-                    }}
-                    className="px-2.5 py-1 rounded-full bg-[#151515] hover:bg-white/10 border border-white/10 hover:border-white/25 text-[11px] text-gray-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    onClick={() => setSelectedElementId(null)}
+                    aria-label="Clear selection"
+                    title="Clear selection"
+                    className="text-gray-400 hover:text-white transition-colors cursor-pointer"
                   >
-                    {suggestion}
+                    <X className="w-3 h-3" />
                   </button>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {/* Smart quick suggestion buttons */}
+              {smartSuggestions.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {smartSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      disabled={isEditingAI || isGeneratingAI}
+                      onClick={() => {
+                        setEditPrompt(suggestion);
+                        handleAiEdit(suggestion);
+                      }}
+                      className="px-2.5 py-1 rounded-full bg-[#151515] hover:bg-white/10 border border-white/10 hover:border-white/25 text-[11px] text-gray-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Single text field + Send button */}
               <form
@@ -2412,9 +2591,24 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
                     if (editError) setEditError(null);
                   }}
                   disabled={isEditingAI || isGeneratingAI}
-                  placeholder="Ask for a change... (e.g. make the logo bigger)"
+                  placeholder={
+                    isEditListening
+                      ? 'Listening...'
+                      : 'Ask for a change... (e.g. make the logo bigger)'
+                  }
                   aria-label="Ask for a change"
                   className="flex-1 bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none disabled:opacity-50"
+                />
+                <VoiceMicButton
+                  language={cardLanguage}
+                  value={editPrompt}
+                  onChange={(nextVal) => {
+                    setEditPrompt(nextVal);
+                    if (editError) setEditError(null);
+                  }}
+                  onListeningChange={setIsEditListening}
+                  onError={(msg) => setEditError({ friendly: msg })}
+                  disabled={isEditingAI || isGeneratingAI}
                 />
                 <button
                   type="submit"
@@ -2428,16 +2622,9 @@ export default function CardCustomizer({ onBookMeeting }: CardCustomizerProps = 
               </form>
 
               {/* Error feedback and daily edit quota */}
-              <div className="flex items-start justify-between gap-2 px-1">
+              <div className="flex items-center justify-between gap-2 px-1">
                 {editError ? (
-                  <div className="flex flex-col">
-                    <span className="text-[11px] text-red-400 leading-tight">{editError.friendly}</span>
-                    {editError.debug && (
-                      <span className="text-[10px] text-gray-500 font-mono break-all leading-tight mt-0.5">
-                        {editError.debug}
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-[11px] text-red-400 leading-tight">{editError.friendly}</span>
                 ) : (
                   <span />
                 )}

@@ -61,6 +61,7 @@ export interface AiCardPromptInput {
   material: 'plastic' | 'metal' | 'wood';
   preferredColors?: string[];
   customText?: string;
+  description?: string;
   language: 'pt' | 'en';
 }
 
@@ -171,6 +172,7 @@ const cardLayoutSchema = {
     },
     cannotFulfill: { type: SchemaType.BOOLEAN },
     message: { type: SchemaType.STRING },
+    summary: { type: SchemaType.STRING },
   },
   required: ['materialId', 'frontBg', 'backBg', 'front', 'back'],
 };
@@ -457,6 +459,20 @@ function isTextElementAllowed(
     }
   }
 
+  // Text explicitly requested in user's free-form description
+  if (input.description && input.description.trim()) {
+    const cleanedDesc = cleanStringForComparison(input.description);
+    if (cleanedDesc) {
+      if (cleaned === cleanedDesc || cleanedDesc.includes(cleaned)) {
+        return true;
+      }
+      const descWords = new Set(cleanedDesc.split(' ').filter(Boolean));
+      if (textWords.length > 0 && textWords.every((w) => descWords.has(w))) {
+        return true;
+      }
+    }
+  }
+
   // Contact details provided by user
   if (input.contactInfo) {
     const contactValues = [
@@ -524,6 +540,14 @@ export async function generateCardWithAi(
   ].filter(Boolean);
   const allowedColors = Array.from(new Set(colorsPool)).join(', ');
 
+  const descriptionBlock = input.description?.trim()
+    ? `
+USER DESCRIPTION ("Describe what's in your head"):
+"${input.description.trim()}"
+Rule: "Use the user's description to guide the style, mood, layout and colours. Text the user explicitly asks to put on the card counts as their content and may be used. Do not invent anything else."
+Priority rule: The form fields take priority if they conflict with the description.`
+    : '';
+
   const prompt = `
 CONTENT RULE:
 Use only the content the user provided: business name, logo, card purpose, contact details and their optional line of text. Never invent text, slogans, icons or illustrations. If a field is empty, leave it out. The only additions allowed are a small NFC tap icon and the call-to-action line for the card's purpose (for example '${ctaLine}').
@@ -549,6 +573,7 @@ ${input.customText?.trim() ? `- Optional line of text: "${input.customText.trim(
 - Logo: ${logoInfo}
 - Language: ${langText}
 - Chosen style: ${normalizedStyle.toUpperCase()}
+${descriptionBlock}
 
 MATERIAL & COLOR RULES:
 - plastic: frontBg and backBg "#ffffff" or "#18181b", element colors strictly from: ${allowedColors}
@@ -857,11 +882,14 @@ export interface AiCardEditInput {
   cardHeight: number;
   userRequest: string;
   recentRequests: string[];
+  selectedElementId?: string | null;
+  selectedSide?: 'front' | 'back';
 }
 
 export interface EditedCardResult {
   cannotFulfill: boolean;
   message?: string;
+  summary?: string;
   cardData?: {
     front: CardState;
     back: CardState;
@@ -911,14 +939,21 @@ function buildEditPayload(input: AiCardEditInput) {
         return serialized;
       });
 
+  const frontMapped = mapSide(input.cardData.front);
+  const backMapped = mapSide(input.cardData.back);
+  const selectedPlaceholderOrId = input.selectedElementId
+    ? idToPlaceholder.get(input.selectedElementId) || input.selectedElementId
+    : null;
+
   return {
     imageMap,
+    selectedPlaceholderOrId,
     payload: {
       materialId: input.materialId,
       frontBg: input.cardData.front.bgColor,
       backBg: input.cardData.back.bgColor,
-      front: mapSide(input.cardData.front),
-      back: mapSide(input.cardData.back),
+      front: frontMapped,
+      back: backMapped,
     },
   };
 }
@@ -938,7 +973,7 @@ export async function editCardWithAi(
   const safeMaxX = Math.max(40, cardW - 24);
   const safeMaxY = Math.max(40, cardH - 16);
 
-  const { imageMap, payload } = buildEditPayload(input);
+  const { imageMap, selectedPlaceholderOrId, payload } = buildEditPayload(input);
   const currentDesignJson = JSON.stringify(payload);
 
   const historyBlock =
@@ -948,6 +983,12 @@ export async function editCardWithAi(
           .map((req, idx) => `${idx + 1}. "${req}"`)
           .join('\n')}`
       : 'RECENT EDIT REQUESTS: None';
+
+  const selectedBlock = selectedPlaceholderOrId
+    ? `\nSELECTED ELEMENT:\nThe user has selected element id "${selectedPlaceholderOrId}" on the "${
+        input.selectedSide || 'front'
+      }" side.\nRule: "Apply the change only to the selected element. Do not change anything else."\n`
+    : '';
 
   const matchingMaterial = MATERIALS.find((m) => m.id === input.materialId);
   const engraveRule =
@@ -969,8 +1010,8 @@ CRITICAL RULES:
 - Card dimensions: ${cardW}x${cardH}px. Safe margins: x: 24-${safeMaxX}, y: 16-${safeMaxY}.
 - ${engraveRule}
 - If the request is unclear or impossible (for example "add a photo of my shop", adding photos, realistic images, 3D renders, or anything outside card layout/text/colors/sizes/shapes/icons), set "cannotFulfill": true, "message": "I couldn't do that. Try something like 'make the name bigger'.", and return the unchanged "front" and "back" arrays.
-- Otherwise set "cannotFulfill": false and return the full updated card design ("materialId", "frontBg", "backBg", "front", "back").
-
+- Otherwise set "cannotFulfill": false, return the full updated card design ("materialId", "frontBg", "backBg", "front", "back"), and include a short "summary" field (one sentence, in the language the user wrote in) describing what you changed.
+${selectedBlock}
 ${historyBlock}
 
 CURRENT REQUEST:
@@ -1093,6 +1134,19 @@ function sanitizeEditedLayout(
           if (direct && !usedOrigIds.has(direct.id)) {
             origMatch = direct;
           }
+        }
+      }
+
+      // Prioritize the user-selected element if AI returned a single element with missing/changed id
+      if (
+        !origMatch &&
+        input.selectedElementId &&
+        sideName === (input.selectedSide === 'back' ? 'back' : 'front') &&
+        rawList.length === 1
+      ) {
+        const selectedCandidate = origById.get(input.selectedElementId);
+        if (selectedCandidate && !usedOrigIds.has(selectedCandidate.id) && selectedCandidate.type === rawType) {
+          origMatch = selectedCandidate;
         }
       }
 
@@ -1287,9 +1341,42 @@ function sanitizeEditedLayout(
 
   const frontState = sanitizeEditedSide(rawFrontHasItems ? raw.front : undefined, input.cardData.front, 'front');
   const backState = sanitizeEditedSide(rawBackHasItems ? raw.back : undefined, input.cardData.back, 'back');
+  const summary = typeof raw.summary === 'string' && raw.summary.trim() ? raw.summary.trim() : undefined;
+
+  // If editing a single selected element, keep everything else strictly untouched
+  if (input.selectedElementId) {
+    const targetSide: 'front' | 'back' = input.selectedSide === 'back' ? 'back' : 'front';
+    const origTargetSide = input.cardData[targetSide];
+    const origSelected = origTargetSide.elements.find((e) => e.id === input.selectedElementId);
+    if (origSelected) {
+      const sanitizedTargetSide = targetSide === 'front' ? frontState : backState;
+      const updatedSelected =
+        sanitizedTargetSide.elements.find((e) => e.id === input.selectedElementId) || origSelected;
+      const lockedTargetSide: CardState = {
+        bgColor: origTargetSide.bgColor,
+        elements: origTargetSide.elements.map((el) =>
+          el.id === input.selectedElementId ? updatedSelected : { ...el }
+        ),
+      };
+      const otherSide: 'front' | 'back' = targetSide === 'front' ? 'back' : 'front';
+      const lockedOtherSide: CardState = {
+        bgColor: input.cardData[otherSide].bgColor,
+        elements: input.cardData[otherSide].elements.map((el) => ({ ...el })),
+      };
+      return {
+        cannotFulfill: false,
+        summary,
+        cardData: {
+          front: targetSide === 'front' ? lockedTargetSide : lockedOtherSide,
+          back: targetSide === 'back' ? lockedTargetSide : lockedOtherSide,
+        },
+      };
+    }
+  }
 
   return {
     cannotFulfill: false,
+    summary,
     cardData: {
       front: frontState,
       back: backState,
